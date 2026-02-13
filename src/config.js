@@ -1,0 +1,23 @@
+export const CONFIG = {
+  quality: 'medium',
+  worldSize: 240,
+  terrainResolution: 128,
+  islandCount: 14,
+  minIslands: 12,
+  crateCount: 5,
+  refugeeRange: [8, 20],
+  helipadRange: [3, 6],
+  minAlt: 2,
+  maxAlt: 26,
+  pickupAlt: 4,
+  landingAlt: 3,
+  moveSpeed: 22,
+  boostMult: 1.6,
+  fuelMax: 100,
+  timeLimitSec: 360,
+  fixedDt: 1 / 60,
+  camera: { pitchDeg: 60, yawDeg: 45, dist: 52, minDist: 32, maxDist: 84 },
+  cyclone: { far: 65, mid: 38, near: 18, baseSpeed: 5.5 },
+};
+
+export const GAME_NAME = 'Cyclone2026: ZX Rescue';
