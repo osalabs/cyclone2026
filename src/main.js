@@ -3,6 +3,7 @@ import { CONFIG, GAME_NAME } from './config.js';
 import { Renderer } from './engine/Renderer.js';
 import { Input } from './engine/Input.js';
 import { Time } from './engine/Time.js';
+import { AudioSystem } from './engine/Audio.js';
 import { generateWorld } from './world/WorldGen.js';
 import { buildTerrain } from './world/TerrainMesh.js';
 import { createHelicopter, createCylinderMarker } from './world/Entities.js';
@@ -23,6 +24,8 @@ const canvas = document.getElementById('game-canvas');
 const renderer = new Renderer(canvas);
 const input = new Input(window);
 const screens = new Screens();
+const audio = new AudioSystem();
+audio.prepare();
 const minimap = new Minimap(document.getElementById('minimap-canvas'));
 const ui = new UISystem(getHUDRefs(), minimap);
 const systems = {
@@ -42,7 +45,7 @@ function setupRound(seedText, round = 1) {
   renderer.scene.add(buildTerrain(world));
   world.crates.forEach((c) => { c.mesh = createCylinderMarker('#c9902b', 1.1, 1.3); c.mesh.position.set(c.x, 1.2, c.z); renderer.scene.add(c.mesh); });
   world.refugees.forEach((r) => { r.mesh = createCylinderMarker('#4fd6d0', 0.8, 1.2); r.mesh.position.set(r.x, 1.1, r.z); renderer.scene.add(r.mesh); });
-  world.helipads.forEach((h) => { h.mesh = createCylinderMarker('#e6e6e6', 2.5, 0.3); h.mesh.position.set(h.x, 0.2, h.z); renderer.scene.add(h.mesh); });
+  world.helipads.forEach((h, i) => { h.mesh = createCylinderMarker(i === 0 ? '#ffffff' : '#b8d8e6', i === 0 ? 2.8 : 2, 0.3); h.mesh.position.set(h.x, 0.2, h.z); renderer.scene.add(h.mesh); });
   const occGeo = new THREE.CylinderGeometry(0.8, 1.2, 1, 8);
   const occMat = new THREE.MeshStandardMaterial({ color: '#69635d' });
   const occ = new THREE.InstancedMesh(occGeo, occMat, world.occluders.length);
@@ -59,13 +62,34 @@ function setupRound(seedText, round = 1) {
 
   state = {
     seedText, round, world,
-    heli: { group: heliObj.group, rotor: heliObj.rotor, pos: { x: world.basePos.x, z: world.basePos.z }, alt: 8, speed: 0, boost: false, onLand: true, landed: false, groundY: 0 },
+    heli: {
+      group: heliObj.group, rotor: heliObj.rotor, pos: { x: world.basePos.x, z: world.basePos.z }, alt: 2,
+      speed: 0, speedLevel: 0, heading: 0, boost: false, onLand: true, landed: true, groundY: 0,
+    },
     shadow, cycloneMesh, cyclone: { x: 0, z: 0, t: 0 }, planes: [], planeTimer: 7,
-    fuel: CONFIG.fuelMax, timeLeft: CONFIG.timeLimitSec, cratesCollected: 0, refugeesSaved: 0, score: 0,
+    fuel: 0, timeLeft: CONFIG.timeLimitSec, cratesCollected: 0, refugeesSaved: 0, score: 0,
     pickupTimer: 0, windForce: 0, viewNorth: true, cameraDist: CONFIG.camera.dist,
     crashReason: '', gameOver: false, winRound: false, paused: false,
+    startSeq: { crateIndex: 0, crateTimer: 0.45, fuelTimer: 0.3, done: false },
   };
   planeSystem = new PlaneSystem(seedText);
+}
+
+function runStartSequence(dt) {
+  if (state.startSeq.done) return;
+  state.startSeq.crateTimer -= dt;
+  if (state.startSeq.crateIndex < CONFIG.crateCount && state.startSeq.crateTimer <= 0) {
+    state.startSeq.crateIndex += 1;
+    state.startSeq.crateTimer = 0.3;
+    audio.play('drop');
+  }
+  state.startSeq.fuelTimer -= dt;
+  if (state.fuel < CONFIG.fuelMax && state.startSeq.fuelTimer <= 0) {
+    state.fuel = Math.min(CONFIG.fuelMax, state.fuel + 4);
+    state.startSeq.fuelTimer = 0.3;
+    audio.play('tick');
+  }
+  if (state.startSeq.crateIndex >= CONFIG.crateCount && state.fuel >= CONFIG.fuelMax) state.startSeq.done = true;
 }
 
 function update(dt) {
@@ -78,15 +102,21 @@ function update(dt) {
   if (!input.down('Escape')) state._eLock = false;
   if (input.down('KeyL') && state.heli.alt <= CONFIG.landingAlt && state.heli.onLand) state.heli.landed = true;
 
-  systems.heli.update(state, input, dt);
-  systems.physics.update(state, dt);
-  systems.cyclone.update(state, dt);
-  planeSystem.update(state, dt);
-  systems.pickup.update(state, dt);
-  systems.fuel.update(state, dt);
+  if (!state.startSeq.done) {
+    runStartSequence(dt);
+  } else {
+    systems.heli.update(state, input, dt);
+    systems.physics.update(state, dt);
+    systems.cyclone.update(state, dt);
+    planeSystem.update(state, dt);
+    systems.pickup.update(state, dt);
+    systems.fuel.update(state, dt);
+  }
 
   state.heli.group.position.set(state.heli.pos.x, state.heli.groundY + state.heli.alt, state.heli.pos.z);
+  state.heli.group.rotation.y = state.heli.heading;
   state.heli.rotor.rotation.y += 1.1;
+  audio.updateRotor(state.heli.speedLevel);
   state.shadow.position.set(state.heli.pos.x, state.heli.groundY + 0.08, state.heli.pos.z);
   state.shadow.scale.setScalar(Math.max(0.45, 1.3 - state.heli.alt * 0.03));
   state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
@@ -128,8 +158,6 @@ document.getElementById('start-btn').addEventListener('click', () => {
 document.getElementById('random-btn').addEventListener('click', () => {
   document.getElementById('seed-input').value = `SEED-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 });
-document.getElementById('help-btn').addEventListener('click', () => screens.showHelp(true));
-document.getElementById('close-help').addEventListener('click', () => screens.showHelp(false));
 document.getElementById('toggle-panel').addEventListener('click', () => document.getElementById('bottom-panel').classList.toggle('compact'));
 
 screens.showMenu(true);

@@ -15,25 +15,23 @@
     <div id="bottom-panel" class="expanded">
       <div id="hud-left">
         <div id="hud-title">Cyclone2026: ZX Rescue</div>
-        <div class="stat">Speed: <span id="hud-speed">0</span></div>
-        <div class="stat">Altitude: <span id="hud-alt">0</span></div>
-        <div class="stat">Fuel: <span id="hud-fuel">0</span></div>
-        <div class="stat">Time: <span id="hud-time">0:00</span></div>
+        <canvas id="minimap-canvas" width="320" height="220"></canvas>
       </div>
       <div id="hud-center">
-        <canvas id="minimap-canvas" width="320" height="220"></canvas>
+        <div class="gauge"><label>Speed</label><span id="hud-speed">0</span></div>
+        <div class="gauge"><label>Altitude</label><span id="hud-alt">0</span></div>
+        <div class="gauge"><label>Fuel</label><span id="hud-fuel">0</span></div>
+        <div class="gauge"><label>Time</label><span id="hud-time">0:00</span></div>
         <button id="toggle-panel">Panel Size</button>
       </div>
       <div id="hud-right">
-        <div class="stat">Crates: <span id="hud-crates">0/5</span></div>
+        <div class="stat">Crates: <span id="hud-crates" class="crate-row"></span></div>
         <div class="stat">Refugees: <span id="hud-refugees">0</span></div>
-        <div class="stat">Wind: <span id="hud-wind">0%</span></div>
-        <div class="stat">Danger: <span id="hud-danger">SAFE</span></div>
+        <div class="stat">Wind: <span class="bar"><span id="hud-wind-bar"></span></span> <span id="hud-wind">0%</span> <span id="hud-danger">SAFE</span></div>
+        <div class="stat">Plane: <span class="bar"><span id="hud-plane-bar"></span></span> <span id="hud-plane">None</span></div>
         <div class="stat">View: <span id="hud-view">North</span></div>
-        <div class="stat">Plane: <span id="hud-plane">None</span></div>
-        <div id="legend">
-          WASD/Arrows Move · R/F Altitude · Shift Boost · V View · M Map · L Land · Esc Pause
-        </div>
+        <div id="legend">Controls: A/D or ←/→ rotate, W/S or ↑/↓ set speed level, R/F altitude, V view, M map, L land, Esc pause.</div>
+        <div id="mission">Collect 5 crates, rescue optional refugees, return to base and land before fuel/time run out.</div>
       </div>
     </div>
   </div>
@@ -44,18 +42,11 @@
     <div class="buttons">
       <button id="start-btn">Start</button>
       <button id="random-btn">Random Seed</button>
-      <button id="help-btn">How to Play</button>
     </div>
     <p id="menu-note">Collect 5 crates, rescue optional refugees, return to base and land before fuel/time run out.</p>
   </div>
 
-  <div id="help" class="modal hidden">
-    <h2>How to Play</h2>
-    <p>Retrieve all 5 crates from islands, then land at base helipad to win the round. Rescue refugees for bonus score.</p>
-    <p>Cyclone proximity causes wind drift. Near center is fatal. Planes can crash into you over water routes.</p>
-    <button id="close-help">Close</button>
-  </div>
-
+  <script src="https://cdn.jsdelivr.net/npm/jsfxr@1.2.2/jsfxr.js"></script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

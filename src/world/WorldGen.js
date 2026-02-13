@@ -22,6 +22,9 @@ function countIslands(mask, n) {
   return regions.sort((a, b) => b.length - a.length);
 }
 
+const PREFIX = ['Azure', 'Storm', 'Seabird', 'Palm', 'Coral', 'Drift', 'Whisper', 'North', 'South', 'Lighthouse', 'Lagoon', 'Crescent'];
+const SUFFIX = ['Cay', 'Islet', 'Key', 'Atoll', 'Reef', 'Point', 'Harbor', 'Rest'];
+
 export function generateWorld(seedText, round = 1) {
   let retry = 0;
   while (retry < 8) {
@@ -29,64 +32,82 @@ export function generateWorld(seedText, round = 1) {
     const n = CONFIG.terrainResolution;
     const size = CONFIG.worldSize;
     const h = new Float32Array(n * n);
+
     for (let b = 0; b < CONFIG.islandCount; b++) {
-      const cx = rng.range(0.15, 0.85) * n;
-      const cy = rng.range(0.15, 0.85) * n;
-      const rad = rng.range(4, 13);
-      const amp = rng.range(0.35, 1.2);
+      const cx = rng.range(0.07, 0.93) * n;
+      const cy = rng.range(0.07, 0.93) * n;
+      const rad = rng.range(2.8, 7.8);
+      const amp = rng.range(0.45, 1.35);
       for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-        const dx = x - cx, dy = y - cy;
+        const dx = x - cx; const dy = y - cy;
         h[y * n + x] += amp * Math.exp(-(dx * dx + dy * dy) / (2 * rad * rad));
       }
     }
-    for (let i = 0; i < h.length; i++) h[i] += rng.range(-0.12, 0.12);
+
+    for (let i = 0; i < h.length; i++) h[i] += rng.range(-0.08, 0.08);
     const mask = new Uint8Array(h.length);
-    for (let i = 0; i < h.length; i++) mask[i] = h[i] > 0.37 ? 1 : 0;
-    const islands = countIslands(mask, n);
+    for (let i = 0; i < h.length; i++) mask[i] = h[i] > 0.52 ? 1 : 0;
+    const islands = countIslands(mask, n).filter((isl) => isl.length > 12 && isl.length < 600);
     if (islands.length < CONFIG.minIslands) { retry++; continue; }
 
     const toWorld = (cell) => {
       const x = cell % n, y = Math.floor(cell / n);
       return { x: (x / (n - 1) - 0.5) * size, z: (y / (n - 1) - 0.5) * size };
     };
+
+    const namedIslands = islands.map((cells, i) => {
+      const centerCell = cells[Math.floor(cells.length / 2)];
+      return {
+        id: `island-${i}`,
+        name: `${PREFIX[i % PREFIX.length]} ${SUFFIX[Math.floor(i / PREFIX.length) % SUFFIX.length]}`,
+        cells,
+        ...toWorld(centerCell),
+      };
+    });
+
     const center = { x: 0, z: 0 };
-    let baseIsland = islands[0];
+    let baseIsland = namedIslands[0];
     let best = Infinity;
-    for (const isl of islands.slice(0, 8)) {
-      const c = toWorld(isl[Math.floor(isl.length / 2)]);
-      const d = (c.x - center.x) ** 2 + (c.z - center.z) ** 2;
-      if (d < best && isl.length > 20) { best = d; baseIsland = isl; }
+    for (const isl of namedIslands) {
+      const d = (isl.x - center.x) ** 2 + (isl.z - center.z) ** 2;
+      if (d < best) { best = d; baseIsland = isl; }
     }
 
-    const pickOnIsland = (isl) => toWorld(isl[rng.int(0, isl.length - 1)]);
+    const pickOnIsland = (isl) => toWorld(isl.cells[rng.int(0, isl.cells.length - 1)]);
     const basePos = pickOnIsland(baseIsland);
     const crates = [];
-    const used = new Set([baseIsland]);
     for (let i = 0; i < CONFIG.crateCount; i++) {
-      const isl = islands[1 + (i % Math.min(islands.length - 1, 10))];
-      crates.push({ id: `crate-${i}`, ...pickOnIsland(isl), collected: false });
-      used.add(isl);
+      const isl = namedIslands[1 + (i % Math.min(namedIslands.length - 1, 12))];
+      crates.push({ id: `crate-${i}`, islandName: isl.name, ...pickOnIsland(isl), collected: false });
     }
     const refugees = [];
     const refugeeCount = rng.int(...CONFIG.refugeeRange);
-    for (let i = 0; i < refugeeCount; i++) refugees.push({ id: `ref-${i}`, ...pickOnIsland(islands[rng.int(1, islands.length - 1)]), saved: false });
-    const helipads = [{ id: 'base', ...basePos }];
+    for (let i = 0; i < refugeeCount; i++) {
+      const isl = namedIslands[rng.int(1, namedIslands.length - 1)];
+      refugees.push({ id: `ref-${i}`, islandName: isl.name, ...pickOnIsland(isl), saved: false });
+    }
+
+    const helipads = [{ id: 'base', islandName: baseIsland.name, ...basePos }];
     const pads = rng.int(...CONFIG.helipadRange);
-    for (let i = 1; i < pads; i++) helipads.push({ id: `pad-${i}`, ...pickOnIsland(islands[rng.int(1, islands.length - 1)]) });
+    for (let i = 1; i < pads; i++) {
+      const isl = namedIslands[rng.int(1, namedIslands.length - 1)];
+      helipads.push({ id: `pad-${i}`, islandName: isl.name, ...pickOnIsland(isl) });
+    }
 
     const occluders = [];
-    for (let i = 0; i < 80; i++) {
-      const p = pickOnIsland(islands[rng.int(0, 9)]);
+    for (let i = 0; i < 110; i++) {
+      const isl = namedIslands[rng.int(0, Math.min(namedIslands.length - 1, 14))];
+      const p = pickOnIsland(isl);
       occluders.push({ ...p, r: rng.range(1, 2.6), h: rng.range(2, 8) });
     }
     const cyclonePath = {
-      centerX: rng.range(-40, 40),
-      centerZ: rng.range(-40, 40),
-      radX: rng.range(60, 95),
-      radZ: rng.range(45, 90),
+      centerX: rng.range(-70, 70),
+      centerZ: rng.range(-70, 70),
+      radX: rng.range(80, 130),
+      radZ: rng.range(70, 120),
       phase: rng.range(0, Math.PI * 2),
     };
-    return { seedText, n, size, h, mask, islands, basePos, crates, refugees, helipads, occluders, cyclonePath };
+    return { seedText, n, size, h, mask, islands, namedIslands, basePos, baseIslandName: baseIsland.name, crates, refugees, helipads, occluders, cyclonePath };
   }
   throw new Error('Failed to generate suitable archipelago');
 }

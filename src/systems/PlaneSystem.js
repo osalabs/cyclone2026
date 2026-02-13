@@ -7,13 +7,15 @@ export class PlaneSystem {
     state.planeTimer -= dt;
     if (state.planeTimer <= 0) {
       state.planeTimer = this.rng.range(12, 25) / (1 + state.round * 0.1);
-      const z = this.rng.range(-100, 100);
-      state.planes.push({ x: -130, z, vx: this.rng.range(23, 35), r: 2.5 });
+      const half = state.world.size * 0.5;
+      const z = this.rng.range(-half * 0.8, half * 0.8);
+      state.planes.push({ x: -half - 20, z, vx: this.rng.range(23, 35), r: 2.5 });
     }
+    const half = state.world.size * 0.5;
     state.planes = state.planes.filter((p) => {
       p.x += p.vx * dt;
       if (circleHit(state.heli.pos.x, state.heli.pos.z, 2, p.x, p.z, p.r) && state.heli.alt < 12) state.crashReason = 'Plane collision';
-      return p.x < 130;
+      return p.x < half + 20;
     });
   }
 }
