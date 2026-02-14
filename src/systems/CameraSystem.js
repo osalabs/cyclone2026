@@ -4,14 +4,20 @@ import { CONFIG } from '../config.js';
 const tmp = new THREE.Vector3();
 export class CameraSystem {
   update(state, renderer, input) {
-    state.cameraDist = Math.max(CONFIG.camera.minDist, Math.min(CONFIG.camera.maxDist, state.cameraDist + input.consumeWheel() * 3));
-    const yaw = (state.viewNorth ? CONFIG.camera.yawDeg : CONFIG.camera.yawDeg + 180) * Math.PI / 180;
-    const pitch = CONFIG.camera.pitchDeg * Math.PI / 180;
+    const wheel = input.consumeWheel();
+    if (wheel !== 0) {
+      state.cameraTiltDeg = Math.max(
+        CONFIG.camera.minTiltDeg,
+        Math.min(CONFIG.camera.maxTiltDeg, state.cameraTiltDeg - wheel * CONFIG.camera.tiltStepDeg),
+      );
+    }
+    const tilt = state.cameraTiltDeg * Math.PI / 180;
+    const viewSign = state.viewNorth ? 1 : -1;
     const target = state.heli.group.position;
     tmp.set(
-      Math.cos(yaw) * Math.cos(pitch) * state.cameraDist,
-      Math.sin(pitch) * state.cameraDist,
-      Math.sin(yaw) * Math.cos(pitch) * state.cameraDist,
+      0,
+      Math.sin(tilt) * state.cameraDist,
+      Math.cos(tilt) * state.cameraDist * viewSign,
     ).add(target);
     renderer.camera.position.lerp(tmp, 0.12);
     renderer.camera.lookAt(target);

@@ -12,27 +12,61 @@
       <canvas id="game-canvas"></canvas>
       <div id="top-overlay" class="hidden"></div>
     </div>
-    <div id="bottom-panel" class="expanded">
+    <div id="bottom-panel">
       <div id="hud-left">
-        <div id="hud-title">Cyclone2026: ZX Rescue</div>
-        <div class="stat">Speed: <span id="hud-speed">0</span></div>
-        <div class="stat">Altitude: <span id="hud-alt">0</span></div>
-        <div class="stat">Fuel: <span id="hud-fuel">0</span></div>
-        <div class="stat">Time: <span id="hud-time">0:00</span></div>
+        <div class="hud-title">Map</div>
+        <canvas id="minimap-canvas" width="320" height="220"></canvas>
       </div>
       <div id="hud-center">
-        <canvas id="minimap-canvas" width="320" height="220"></canvas>
-        <button id="toggle-panel">Panel Size</button>
+        <div class="hud-title">Flight</div>
+        <div class="gauge-row">
+          <span class="gauge-label">Altitude</span>
+          <div id="hud-alt-gauge" class="block-gauge"></div>
+          <span id="hud-alt" class="gauge-value">0</span>
+        </div>
+        <div class="gauge-row">
+          <span class="gauge-label">Speed</span>
+          <div id="hud-speed-gauge" class="block-gauge"></div>
+          <span id="hud-speed" class="gauge-value">0</span>
+        </div>
+        <div class="gauge-row">
+          <span class="gauge-label">Fuel</span>
+          <div id="hud-fuel-gauge" class="block-gauge"></div>
+          <span id="hud-fuel" class="gauge-value">0</span>
+        </div>
+        <div class="gauge-row">
+          <span class="gauge-label">Time</span>
+          <div class="continuous-wrap">
+            <div id="hud-time-fill" class="continuous-fill"></div>
+          </div>
+          <span id="hud-time" class="gauge-value">0:00</span>
+        </div>
       </div>
       <div id="hud-right">
-        <div class="stat">Crates: <span id="hud-crates">0/5</span></div>
+        <div class="hud-title">Mission</div>
+        <div class="crates-row">
+          <span class="gauge-label">Crates</span>
+          <div id="hud-crates-icons" class="crates-icons"></div>
+        </div>
         <div class="stat">Refugees: <span id="hud-refugees">0</span></div>
-        <div class="stat">Wind: <span id="hud-wind">0%</span></div>
-        <div class="stat">Danger: <span id="hud-danger">SAFE</span></div>
+        <div class="metric-row">
+          <span class="gauge-label">Wind</span>
+          <div class="continuous-wrap">
+            <div id="hud-wind-fill" class="continuous-fill wind"></div>
+          </div>
+          <span id="hud-wind-alert" class="status-pill">CLEAR</span>
+        </div>
+        <div class="metric-row">
+          <span class="gauge-label">Plane</span>
+          <div class="continuous-wrap">
+            <div id="hud-plane-fill" class="continuous-fill plane"></div>
+          </div>
+          <span id="hud-plane-alert" class="status-pill">CLEAR</span>
+        </div>
         <div class="stat">View: <span id="hud-view">North</span></div>
-        <div class="stat">Plane: <span id="hud-plane">None</span></div>
+        <div class="stat">Tilt: <span id="hud-tilt">45.0 deg</span></div>
         <div id="legend">
-          WASD/Arrows Move · R/F Altitude · Shift Boost · V View · M Map · L Land · Esc Pause
+          A/D or Left/Right rotate, W/S or Up/Down set speed (-5..+5), R/F altitude, Mouse Wheel tilt, V view N/S, M map zoom, L land, Esc pause.
         </div>
       </div>
     </div>
@@ -44,16 +78,11 @@
     <div class="buttons">
       <button id="start-btn">Start</button>
       <button id="random-btn">Random Seed</button>
-      <button id="help-btn">How to Play</button>
     </div>
-    <p id="menu-note">Collect 5 crates, rescue optional refugees, return to base and land before fuel/time run out.</p>
-  </div>
-
-  <div id="help" class="modal hidden">
-    <h2>How to Play</h2>
-    <p>Retrieve all 5 crates from islands, then land at base helipad to win the round. Rescue refugees for bonus score.</p>
-    <p>Cyclone proximity causes wind drift. Near center is fatal. Planes can crash into you over water routes.</p>
-    <button id="close-help">Close</button>
+    <p id="menu-note">
+      Collect 5 crates, rescue optional refugees, return to base and land before fuel/time run out.<br />
+      Controls: A/D or Left/Right rotate, W/S or Up/Down set speed levels, R/F altitude, Mouse Wheel tilt, V view N/S, M map zoom, L land, Esc pause.
+    </p>
   </div>
 
   <script type="module" src="src/main.js"></script>

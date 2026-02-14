@@ -8,14 +8,16 @@ export function buildTerrain(world) {
   for (let i = 0; i < pos.count; i++) {
     const y = world.h[i];
     pos.setY(i, y * 8);
-    if (y < 0.37) colors.push(0.1, 0.3, 0.55);
-    else if (y < 0.45) colors.push(0.84, 0.77, 0.53);
-    else if (y < 0.8) colors.push(0.2, 0.58, 0.24);
-    else colors.push(0.36, 0.36, 0.36);
+    if (y < 0.18) colors.push(0.09, 0.34, 0.57);
+    else if (y < 0.25) colors.push(0.86, 0.78, 0.48);
+    else if (y < 0.38) colors.push(0.5, 0.86, 0.33);
+    else if (y < 0.52) colors.push(0.38, 0.78, 0.27);
+    else if (y < 0.7) colors.push(0.28, 0.67, 0.22);
+    else colors.push(0.2, 0.56, 0.18);
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }));
+  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
 }
 
 export function sampleGroundHeight(world, x, z) {

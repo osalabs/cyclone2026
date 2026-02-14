@@ -8,5 +8,6 @@ export class PhysicsSystem {
     heli.pos.z = Math.max(-CONFIG.worldSize * 0.5, Math.min(CONFIG.worldSize * 0.5, heli.pos.z));
     heli.groundY = sampleGroundHeight(world, heli.pos.x, heli.pos.z);
     heli.onLand = isLand(world, heli.pos.x, heli.pos.z);
+    if (heli.alt <= 0.02 && !heli.landed) state.crashReason = 'Sea impact';
   }
 }

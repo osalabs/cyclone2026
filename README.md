@@ -3,10 +3,11 @@
 Cyclone2026: ZX Rescue is a static HTML/JS (ES modules) helicopter rescue game inspired by classic 80s design. You collect 5 medical crates across seeded islands while avoiding a roaming cyclone and crossing planes.
 
 ## Controls
-- Move: **WASD** or **Arrow Keys**
+- Turn: **A/D** or **Left/Right**
+- Speed level (-5 to +5): **W/S** or **Up/Down**
 - Altitude: **R** ascend, **F** descend
-- Boost: **Shift**
-- Toggle North/South camera: **V**
+- Camera tilt: **Mouse Wheel**
+- Toggle North/South view: **V**
 - Toggle expanded minimap: **M**
 - Emergency landing: **L** (low altitude over land)
 - Pause: **Esc**
