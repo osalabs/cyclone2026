@@ -126,13 +126,15 @@ function setupRound(seedText, round = 1) {
   const bladeLength = 2.95;
   const bladeWidth = 0.2;
   const bladeHubGap = 0.52;
-  const bladeGeo = new THREE.BoxGeometry(bladeLength, 0.012, bladeWidth);
+  const bladeGeo = new THREE.PlaneGeometry(bladeLength, bladeWidth);
   for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+    const bladeHolder = new THREE.Group();
+    bladeHolder.rotation.y = angle;
     const blade = new THREE.Mesh(bladeGeo, shadowRotorMat);
-    blade.rotation.y = angle;
-    const d = bladeHubGap + bladeLength * 0.5;
-    blade.position.set(Math.cos(angle) * d, 0, -Math.sin(angle) * d);
-    mainRotorBlades.add(blade);
+    blade.rotation.x = -Math.PI / 2;
+    blade.position.x = bladeHubGap + bladeLength * 0.5;
+    bladeHolder.add(blade);
+    mainRotorBlades.add(bladeHolder);
   }
   const rotorHubShadow = new THREE.Mesh(new THREE.CircleGeometry(0.36, 16), shadowRotorMat);
   rotorHubShadow.rotation.x = -Math.PI / 2;
