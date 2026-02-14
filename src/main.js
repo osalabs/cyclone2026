@@ -76,11 +76,72 @@ function setupRound(seedText, round = 1) {
 
   const heliObj = createHelicopter();
   renderer.scene.add(heliObj.group);
-  const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.8, 16),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 }),
-  );
-  shadow.rotation.x = -Math.PI / 2;
+  const shadow = new THREE.Group();
+  const shadowBodyMat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const shadowRotorMat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const shadowRotorBlurMat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const rotorShadowOffsetX = -heliObj.rotor.position.x;
+  const rotorShadowOffsetZ = -heliObj.rotor.position.z;
+  const bodyShape = new THREE.Shape();
+  bodyShape.moveTo(-0.6, 1.2);
+  bodyShape.quadraticCurveTo(0, 1.55, 0.6, 1.2);
+  bodyShape.lineTo(0.72, 0.45);
+  bodyShape.lineTo(0.54, -0.18);
+  bodyShape.lineTo(0.2, -0.62);
+  bodyShape.lineTo(0.2, -2.28);
+  bodyShape.lineTo(-0.2, -2.28);
+  bodyShape.lineTo(-0.2, -0.62);
+  bodyShape.lineTo(-0.54, -0.18);
+  bodyShape.lineTo(-0.72, 0.45);
+  bodyShape.lineTo(-0.6, 1.2);
+
+  const bodyShadow = new THREE.Mesh(new THREE.ShapeGeometry(bodyShape), shadowBodyMat);
+  bodyShadow.rotation.x = -Math.PI / 2;
+  bodyShadow.position.y = 0.01;
+
+  const mainRotorDisc = new THREE.Mesh(new THREE.CircleGeometry(3.65, 30), shadowRotorBlurMat);
+  mainRotorDisc.rotation.x = -Math.PI / 2;
+  mainRotorDisc.position.set(rotorShadowOffsetX, 0.012, rotorShadowOffsetZ);
+
+  const mainRotorBlades = new THREE.Group();
+  mainRotorBlades.position.set(rotorShadowOffsetX, 0.012, rotorShadowOffsetZ);
+  const bladeLength = 2.95;
+  const bladeWidth = 0.2;
+  const bladeHubGap = 0.52;
+  const bladeGeo = new THREE.BoxGeometry(bladeLength, 0.012, bladeWidth);
+  for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+    const blade = new THREE.Mesh(bladeGeo, shadowRotorMat);
+    blade.rotation.y = angle;
+    const d = bladeHubGap + bladeLength * 0.5;
+    blade.position.set(Math.cos(angle) * d, 0, -Math.sin(angle) * d);
+    mainRotorBlades.add(blade);
+  }
+  const rotorHubShadow = new THREE.Mesh(new THREE.CircleGeometry(0.36, 16), shadowRotorMat);
+  rotorHubShadow.rotation.x = -Math.PI / 2;
+  rotorHubShadow.position.y = 0.001;
+  mainRotorBlades.add(rotorHubShadow);
+
+  shadow.add(bodyShadow, mainRotorDisc, mainRotorBlades);
+  shadow.userData.mainRotorDisc = mainRotorDisc;
+  shadow.userData.mainRotorBlades = mainRotorBlades;
   renderer.scene.add(shadow);
   const cycloneMesh = new THREE.Mesh(
     new THREE.CylinderGeometry(5, 10, 18, 20, 1, true),
@@ -97,7 +158,7 @@ function setupRound(seedText, round = 1) {
       rotor: heliObj.rotor,
       tailRotor: heliObj.tailRotor || null,
       pos: { x: world.basePos.x, z: world.basePos.z },
-      heading: 0,
+      heading: -Math.PI / 2,
       alt: baseGroundY + CONFIG.landingAlt - 0.2,
       speed: 0,
       speedLevel: 0,
@@ -195,12 +256,22 @@ function update(dt) {
   state.heli.group.position.set(state.heli.pos.x, state.heli.alt, state.heli.pos.z);
   state.heli.group.rotation.y = state.heli.heading + Math.PI;
   const flightSpeedLevel = Math.max(1, Math.abs(state.heli.speedLevel));
-  const rotorSpin = state.heli.landed ? 0.08 : (1.6 + flightSpeedLevel * 0.22);
+  const rotorSpin = state.heli.landed ? 0.04 : (1.6 + flightSpeedLevel * 0.22);
   state.heli.rotor.rotation.y += rotorSpin;
   if (state.heli.tailRotor) state.heli.tailRotor.rotation.x += rotorSpin * 3.8;
   state.shadow.position.set(state.heli.pos.x, state.heli.groundY + 0.08, state.heli.pos.z);
+  state.shadow.rotation.y = state.heli.heading;
+  if (state.heli.landed) {
+    state.shadow.userData.mainRotorDisc.visible = false;
+    state.shadow.userData.mainRotorBlades.visible = true;
+    state.shadow.userData.mainRotorBlades.rotation.y = state.heli.rotor.rotation.y;
+  } else {
+    state.shadow.userData.mainRotorDisc.visible = true;
+    state.shadow.userData.mainRotorBlades.visible = false;
+  }
   const shadowClearance = Math.max(0.3, state.heli.alt - state.heli.groundY);
-  state.shadow.scale.setScalar(Math.max(0.45, 1.3 - shadowClearance * 0.05));
+  const shadowScale = Math.max(0.45, 1.3 - shadowClearance * 0.05);
+  state.shadow.scale.set(shadowScale, 1, shadowScale);
   state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
   state.cycloneMesh.rotation.y += 0.06;
   state.world.crates.forEach((c) => { c.mesh.visible = !c.collected; });
