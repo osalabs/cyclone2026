@@ -75,6 +75,7 @@ function setupRound(seedText, round = 1) {
   renderer.scene.add(occ);
 
   const heliObj = createHelicopter();
+  heliObj.group.rotation.order = 'YXZ';
   renderer.scene.add(heliObj.group);
   const shadow = new THREE.Group();
   const shadowBodyMat = new THREE.MeshBasicMaterial({
@@ -161,6 +162,8 @@ function setupRound(seedText, round = 1) {
       tailRotor: heliObj.tailRotor || null,
       pos: { x: world.basePos.x, z: world.basePos.z },
       heading: -Math.PI / 2,
+      visualPitch: 0,
+      visualRoll: 0,
       alt: baseGroundY + CONFIG.landingAlt - 0.2,
       speed: 0,
       speedLevel: 0,
@@ -256,7 +259,12 @@ function update(dt) {
   updateStartupEffects(dt);
 
   state.heli.group.position.set(state.heli.pos.x, state.heli.alt, state.heli.pos.z);
-  state.heli.group.rotation.y = state.heli.heading + Math.PI;
+  state.heli.group.rotation.set(
+    state.heli.visualPitch || 0,
+    state.heli.heading + Math.PI,
+    state.heli.visualRoll || 0,
+    'YXZ',
+  );
   const flightSpeedLevel = Math.max(1, Math.abs(state.heli.speedLevel));
   const rotorSpin = state.heli.landed ? 0.04 : (1.6 + flightSpeedLevel * 0.22);
   state.heli.rotor.rotation.y += rotorSpin;
@@ -273,7 +281,11 @@ function update(dt) {
   }
   const shadowClearance = Math.max(0.3, state.heli.alt - state.heli.groundY);
   const shadowScale = Math.max(0.45, 1.3 - shadowClearance * 0.05);
-  state.shadow.scale.set(shadowScale, 1, shadowScale);
+  const pitchRatio = Math.min(1, Math.abs(state.heli.visualPitch || 0) / ((CONFIG.heliTilt.maxPitchDeg || 12) * Math.PI / 180));
+  const rollRatio = Math.min(1, Math.abs(state.heli.visualRoll || 0) / ((CONFIG.heliTilt.maxRollDeg || 14) * Math.PI / 180));
+  const shadowScaleX = Math.max(0.38, shadowScale * (1 + rollRatio * 0.2 - pitchRatio * 0.07));
+  const shadowScaleZ = Math.max(0.38, shadowScale * (1 + pitchRatio * 0.2 - rollRatio * 0.07));
+  state.shadow.scale.set(shadowScaleX, 1, shadowScaleZ);
   state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
   state.cycloneMesh.rotation.y += 0.06;
   state.world.crates.forEach((c) => { c.mesh.visible = !c.collected; });

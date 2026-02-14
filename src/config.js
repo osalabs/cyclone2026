@@ -20,6 +20,11 @@ export const CONFIG = {
   speedLevels: 5,
   speedStep: 6,
   turnDegPerSec: 120,
+  heliTilt: {
+    maxPitchDeg: 12,
+    maxRollDeg: 14,
+    response: 8,
+  },
   fuelMax: 100,
   refuelPerSec: 20,
   timeLimitSec: 360,
