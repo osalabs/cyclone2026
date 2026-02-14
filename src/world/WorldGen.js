@@ -187,6 +187,7 @@ export function generateWorld(seedText, round = 1) {
     }
 
     const seaLevel = 0.17;
+    const landThreshold = 0.18;
     for (let y = 0; y < n; y++) {
       for (let x = 0; x < n; x++) {
         const i = y * n + x;
@@ -201,8 +202,12 @@ export function generateWorld(seedText, round = 1) {
       }
     }
 
+    for (let i = 0; i < h.length; i++) {
+      if (h[i] <= landThreshold) h[i] = seaLevel;
+    }
+
     const mask = new Uint8Array(h.length);
-    for (let i = 0; i < h.length; i++) mask[i] = h[i] > 0.18 ? 1 : 0;
+    for (let i = 0; i < h.length; i++) mask[i] = h[i] > landThreshold ? 1 : 0;
 
     let islands = countIslands(mask, n).filter((isl) => isl.length >= CONFIG.minIslandCells);
     if (islands.length < CONFIG.minIslands) {
@@ -220,6 +225,9 @@ export function generateWorld(seedText, round = 1) {
 
     const cleanMask = new Uint8Array(mask.length);
     for (const isl of islands) for (const cell of isl) cleanMask[cell] = 1;
+    for (let i = 0; i < h.length; i++) {
+      if (!cleanMask[i]) h[i] = seaLevel;
+    }
 
     const toWorld = (cell) => {
       const x = cell % n;

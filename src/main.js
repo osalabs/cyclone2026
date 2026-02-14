@@ -65,7 +65,7 @@ function setupRound(seedText, round = 1) {
     renderer.scene.add(h.mesh);
   });
   const occGeo = new THREE.CylinderGeometry(0.8, 1.2, 1, 8);
-  const occMat = new THREE.MeshStandardMaterial({ color: '#69635d' });
+  const occMat = new THREE.MeshStandardMaterial({ color: '#2c2a2a', roughness: 1 });
   const occ = new THREE.InstancedMesh(occGeo, occMat, world.occluders.length);
   const m = new THREE.Matrix4();
   world.occluders.forEach((o, i) => {
