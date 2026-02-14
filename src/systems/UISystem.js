@@ -8,9 +8,8 @@ export class UISystem {
     this.hud.fuel.textContent = Math.max(0, state.fuel).toFixed(1);
     this.hud.time.textContent = formatTime(Math.max(0, state.timeLeft));
 
-    const picked = state.cratesCollected;
-    const total = 5;
-    this.hud.crates.innerHTML = Array.from({ length: total }).map((_, i) => `<span class="${i < picked ? 'crate-picked' : 'crate-pending'}">■</span>`).join(' ');
+    const visibleCrates = state.startSeq?.done ? 5 : state.startSeq?.crateIndex ?? 5;
+    this.hud.crates.innerHTML = Array.from({ length: visibleCrates }).map((_, i) => `<span class="${i < state.cratesCollected ? 'crate-picked' : 'crate-pending'}">■</span>`).join(' ');
     this.hud.refugees.textContent = `${state.refugeesSaved}`;
 
     const windPct = Math.round(state.windForce * 100);
@@ -21,7 +20,6 @@ export class UISystem {
     this.hud.danger.classList.toggle('alert', cycloneDanger);
 
     this.hud.view.textContent = state.viewNorth ? 'North' : 'South';
-
     const plane = state.planes[0];
     if (plane) {
       const dist = Math.hypot(plane.x - state.heli.pos.x, plane.z - state.heli.pos.z);

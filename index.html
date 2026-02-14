@@ -12,25 +12,22 @@
       <canvas id="game-canvas"></canvas>
       <div id="top-overlay" class="hidden"></div>
     </div>
-    <div id="bottom-panel" class="expanded">
+    <div id="bottom-panel">
       <div id="hud-left">
         <div id="hud-title">Cyclone2026: ZX Rescue</div>
-        <canvas id="minimap-canvas" width="320" height="220"></canvas>
+        <canvas id="minimap-canvas" width="520" height="300"></canvas>
       </div>
-      <div id="hud-center">
+      <div id="hud-right">
         <div class="gauge"><label>Speed</label><span id="hud-speed">0</span></div>
         <div class="gauge"><label>Altitude</label><span id="hud-alt">0</span></div>
         <div class="gauge"><label>Fuel</label><span id="hud-fuel">0</span></div>
         <div class="gauge"><label>Time</label><span id="hud-time">0:00</span></div>
-        <button id="toggle-panel">Panel Size</button>
-      </div>
-      <div id="hud-right">
         <div class="stat">Crates: <span id="hud-crates" class="crate-row"></span></div>
         <div class="stat">Refugees: <span id="hud-refugees">0</span></div>
         <div class="stat">Wind: <span class="bar"><span id="hud-wind-bar"></span></span> <span id="hud-wind">0%</span> <span id="hud-danger">SAFE</span></div>
         <div class="stat">Plane: <span class="bar"><span id="hud-plane-bar"></span></span> <span id="hud-plane">None</span></div>
         <div class="stat">View: <span id="hud-view">North</span></div>
-        <div id="legend">Controls: A/D or ←/→ rotate, W/S or ↑/↓ set speed level, R/F altitude, V view, M map, L land, Esc pause.</div>
+        <div id="legend">Controls: A/← rotate counter-clockwise, D/→ rotate clockwise, W/S speed level, R/F altitude, V view, M map, L land, Esc pause.</div>
         <div id="mission">Collect 5 crates, rescue optional refugees, return to base and land before fuel/time run out.</div>
       </div>
     </div>
@@ -46,7 +43,6 @@
     <p id="menu-note">Collect 5 crates, rescue optional refugees, return to base and land before fuel/time run out.</p>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/jsfxr@1.2.2/jsfxr.js"></script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

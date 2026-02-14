@@ -1,3 +1,5 @@
+import jsfxr from 'https://cdn.jsdelivr.net/npm/jsfxr@1.4.0/+esm';
+
 export class AudioSystem {
   constructor() {
     this.enabled = false;
@@ -13,13 +15,11 @@ export class AudioSystem {
   }
 
   prepare() {
-    const jsfxr = window.jsfxr;
-    if (!jsfxr) return;
     this.sounds.drop = new Audio(jsfxr([3, 0.03, 0.11, 0.23, 0.18, 0.42, 0, -0.14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]));
     this.sounds.tick = new Audio(jsfxr([0, 0.01, 0.05, 0.17, 0.07, 0.25, 0, 0, 0, 0, 0, 0, 0, 0.11, 0, 0, 0, 1, 0, 0]));
     this.rotorLoop = new Audio(jsfxr([3, 0.08, 0.31, 0.02, 0.39, 0.13, 0, -0.33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]));
     this.rotorLoop.loop = true;
-    this.rotorLoop.volume = 0.2;
+    this.rotorLoop.volume = 0.25;
   }
 
   play(name) {

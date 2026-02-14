@@ -2,8 +2,10 @@ import { CONFIG } from '../config.js';
 
 export class HelicopterSystem {
   update(state, input, dt) {
-    const turn = (input.down('KeyD', 'ArrowRight') ? 1 : 0) - (input.down('KeyA', 'ArrowLeft') ? 1 : 0);
-    state.heli.heading += turn * 1.7 * dt;
+    const ccw = input.down('KeyA', 'ArrowLeft');
+    const cw = input.down('KeyD', 'ArrowRight');
+    if (ccw && !cw) state.heli.heading -= 1.7 * dt;
+    if (cw && !ccw) state.heli.heading += 1.7 * dt;
 
     if (input.down('KeyW', 'ArrowUp') && !state._wLock) {
       state._wLock = true;
@@ -20,7 +22,7 @@ export class HelicopterSystem {
     const level = CONFIG.speedLevels[state.heli.speedLevel + 2];
     state.heli.speed = level * CONFIG.moveSpeed;
     state.heli.pos.x += Math.sin(state.heli.heading) * state.heli.speed * dt;
-    state.heli.pos.z += Math.cos(state.heli.heading) * state.heli.speed * dt;
+    state.heli.pos.z -= Math.cos(state.heli.heading) * state.heli.speed * dt;
 
     if (input.down('KeyR')) state.heli.alt += 12 * dt;
     if (input.down('KeyF')) state.heli.alt -= 12 * dt;

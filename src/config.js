@@ -1,8 +1,8 @@
 export const CONFIG = {
   quality: 'medium',
-  worldSize: 420,
-  terrainResolution: 180,
-  islandCount: 36,
+  worldSize: 520,
+  terrainResolution: 220,
+  islandCount: 48,
   minIslands: 16,
   crateCount: 5,
   refugeeRange: [8, 20],
