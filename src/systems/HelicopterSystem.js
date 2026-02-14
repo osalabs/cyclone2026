@@ -9,10 +9,21 @@ export class HelicopterSystem {
   }
 
   update(state, input, dt) {
+    const prevAlt = state.heli.alt;
     const turnLeft = input.down('KeyA', 'ArrowLeft');
     const turnRight = input.down('KeyD', 'ArrowRight');
     if (turnLeft) state.heli.heading -= (CONFIG.turnDegPerSec * Math.PI / 180) * dt;
     if (turnRight) state.heli.heading += (CONFIG.turnDegPerSec * Math.PI / 180) * dt;
+
+    if (state.heli.landed) {
+      state.heli.speedLevel = 0;
+      state.heli.speed = 0;
+      state.heli.verticalSpeed = 0;
+      state.heli.fallDistance = 0;
+      state.heli.descentPauseTime = 0;
+      if (input.down('KeyR')) state.heli.landed = false;
+      else return;
+    }
 
     const speedUp = input.down('KeyW', 'ArrowUp');
     const speedDown = input.down('KeyS', 'ArrowDown');
@@ -39,6 +50,15 @@ export class HelicopterSystem {
     state.heli.alt = Math.max(CONFIG.minAlt, Math.min(CONFIG.maxAlt, state.heli.alt));
 
     state.heli.speed = Math.abs(stepSpeed);
+    state.heli.verticalSpeed = (state.heli.alt - prevAlt) / dt;
+    if (state.heli.verticalSpeed < -0.1) {
+      state.heli.fallDistance = (state.heli.fallDistance || 0) + (-state.heli.verticalSpeed * dt);
+      state.heli.descentPauseTime = 0;
+    } else {
+      state.heli.descentPauseTime = (state.heli.descentPauseTime || 0) + dt;
+      if (state.heli.descentPauseTime >= 0.3) state.heli.fallDistance = 0;
+      else state.heli.fallDistance = Math.max(0, (state.heli.fallDistance || 0) - dt * 6);
+    }
     state.heli.boost = false;
   }
 }

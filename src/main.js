@@ -100,6 +100,9 @@ function setupRound(seedText, round = 1) {
       alt: baseGroundY + CONFIG.landingAlt - 0.2,
       speed: 0,
       speedLevel: 0,
+      verticalSpeed: 0,
+      fallDistance: 0,
+      descentPauseTime: 0,
       boost: false,
       onLand: true,
       landed: true,
@@ -190,7 +193,7 @@ function update(dt) {
 
   state.heli.group.position.set(state.heli.pos.x, state.heli.alt, state.heli.pos.z);
   state.heli.group.rotation.y = state.heli.heading + Math.PI;
-  state.heli.rotor.rotation.y += 0.25 + Math.abs(state.heli.speedLevel) * 0.08;
+  state.heli.rotor.rotation.y += state.heli.landed ? 0.08 : (1.6 + Math.abs(state.heli.speedLevel) * 0.22);
   state.shadow.position.set(state.heli.pos.x, state.heli.groundY + 0.08, state.heli.pos.z);
   const shadowClearance = Math.max(0.3, state.heli.alt - state.heli.groundY);
   state.shadow.scale.setScalar(Math.max(0.45, 1.3 - shadowClearance * 0.05));
