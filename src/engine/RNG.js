@@ -18,6 +18,11 @@ export class RNG {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
+  bool(chance = 0.5) {
+    if (chance <= 0) return false;
+    if (chance >= 1) return true;
+    return this.next() < chance;
+  }
   range(min, max) { return min + (max - min) * this.next(); }
   int(min, maxInclusive) { return Math.floor(this.range(min, maxInclusive + 1)); }
   pick(arr) { return arr[this.int(0, arr.length - 1)]; }
