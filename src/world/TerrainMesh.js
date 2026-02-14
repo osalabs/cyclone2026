@@ -1,5 +1,12 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
+const SEA = new THREE.Color('#82E1F2');
+const SHORE = new THREE.Color('#F2E66A');
+const LAND_LIGHT = new THREE.Color('#83DE5C');
+const LAND_MAIN = new THREE.Color('#71D040');
+const LAND_DARK = new THREE.Color('#5CB838');
+const LAND_DEEP = new THREE.Color('#489C2E');
+
 function sampleHeight(world, x, z) {
   const fx = (x / world.size + 0.5) * (world.n - 1);
   const fz = (z / world.size + 0.5) * (world.n - 1);
@@ -9,12 +16,12 @@ function sampleHeight(world, x, z) {
 }
 
 function terrainColor(h) {
-  if (h < 0.18) return [0.53, 0.92, 1.0]; // sea cyan
-  if (h < 0.205) return [0.95, 0.90, 0.41]; // narrow shore yellow
-  if (h < 0.33) return [0.50, 0.92, 0.27]; // bright green
-  if (h < 0.47) return [0.39, 0.78, 0.22]; // mid green
-  if (h < 0.62) return [0.27, 0.61, 0.16]; // dark step
-  return [0.18, 0.45, 0.11]; // cliff dark
+  if (h < 0.18) return [SEA.r, SEA.g, SEA.b];
+  if (h < 0.205) return [SHORE.r, SHORE.g, SHORE.b];
+  if (h < 0.33) return [LAND_LIGHT.r, LAND_LIGHT.g, LAND_LIGHT.b];
+  if (h < 0.47) return [LAND_MAIN.r, LAND_MAIN.g, LAND_MAIN.b];
+  if (h < 0.62) return [LAND_DARK.r, LAND_DARK.g, LAND_DARK.b];
+  return [LAND_DEEP.r, LAND_DEEP.g, LAND_DEEP.b];
 }
 
 export function buildTerrain(world) {
