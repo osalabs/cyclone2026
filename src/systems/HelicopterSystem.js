@@ -12,8 +12,8 @@ export class HelicopterSystem {
     const prevAlt = state.heli.alt;
     const turnLeft = input.down('KeyA', 'ArrowLeft');
     const turnRight = input.down('KeyD', 'ArrowRight');
-    if (turnLeft) state.heli.heading -= (CONFIG.turnDegPerSec * Math.PI / 180) * dt;
-    if (turnRight) state.heli.heading += (CONFIG.turnDegPerSec * Math.PI / 180) * dt;
+    if (turnLeft) state.heli.heading += (CONFIG.turnDegPerSec * Math.PI / 180) * dt;
+    if (turnRight) state.heli.heading -= (CONFIG.turnDegPerSec * Math.PI / 180) * dt;
 
     if (state.heli.landed) {
       state.heli.speedLevel = 0;
@@ -41,7 +41,7 @@ export class HelicopterSystem {
     if (!speedDown) this.locks.down = false;
 
     const stepSpeed = state.heli.speedLevel * CONFIG.speedStep;
-    v.set(Math.sin(state.heli.heading), 0, -Math.cos(state.heli.heading)).multiplyScalar(stepSpeed * dt);
+    v.set(-Math.sin(state.heli.heading), 0, -Math.cos(state.heli.heading)).multiplyScalar(stepSpeed * dt);
     state.heli.pos.x += v.x;
     state.heli.pos.z += v.z;
 

@@ -194,7 +194,8 @@ function update(dt) {
 
   state.heli.group.position.set(state.heli.pos.x, state.heli.alt, state.heli.pos.z);
   state.heli.group.rotation.y = state.heli.heading + Math.PI;
-  const rotorSpin = state.heli.landed ? 0.08 : (1.6 + Math.abs(state.heli.speedLevel) * 0.22);
+  const flightSpeedLevel = Math.max(1, Math.abs(state.heli.speedLevel));
+  const rotorSpin = state.heli.landed ? 0.08 : (1.6 + flightSpeedLevel * 0.22);
   state.heli.rotor.rotation.y += rotorSpin;
   if (state.heli.tailRotor) state.heli.tailRotor.rotation.x += rotorSpin * 3.8;
   state.shadow.position.set(state.heli.pos.x, state.heli.groundY + 0.08, state.heli.pos.z);
