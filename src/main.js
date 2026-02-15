@@ -39,6 +39,9 @@ let planeSystem;
 let state;
 
 const TWO_PI = Math.PI * 2;
+const RENDER_SEA_Y = 0.18 * 8;
+const RENDER_LAND_STEP_Y = 0.26;
+const SHADOW_Y_OFFSET = 0.12;
 
 function drawHeliShadowTexture(ctx, size, landed, rotorAngle = 0) {
   ctx.clearRect(0, 0, size, size);
@@ -219,7 +222,7 @@ function setupRound(seedText, round = 1) {
       groundY: baseGroundY,
     },
     shadow,
-    shadowY: baseGroundY + 0.08,
+    shadowY: Math.floor(baseGroundY / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y + SHADOW_Y_OFFSET,
     cycloneMesh,
     cyclone: { x: 0, z: 0, t: 0 },
     planes: [],
@@ -314,9 +317,17 @@ function update(dt) {
   state.heli.rotor.rotation.y += rotorSpin;
   if (state.heli.tailRotor) state.heli.tailRotor.rotation.x += rotorSpin * 3.8;
   updateHeliShadow(state.shadow, state.heli.landed, state.heli.rotor.rotation.y);
-  const shadowTargetY = state.heli.groundY + 0.08;
-  const shadowBlend = 1 - Math.exp(-9 * dt);
-  state.shadowY += (shadowTargetY - state.shadowY) * shadowBlend;
+  const renderedGroundY = state.heli.onLand
+    ? Math.max(RENDER_SEA_Y, Math.floor(state.heli.groundY / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y)
+    : RENDER_SEA_Y;
+  const shadowTargetY = renderedGroundY + SHADOW_Y_OFFSET;
+  if (state.heli.landed) {
+    state.shadowY = shadowTargetY;
+  } else {
+    const followRate = shadowTargetY > state.shadowY ? 30 : 10;
+    const shadowBlend = 1 - Math.exp(-followRate * dt);
+    state.shadowY += (shadowTargetY - state.shadowY) * shadowBlend;
+  }
   state.shadow.position.set(state.heli.pos.x, state.shadowY, state.heli.pos.z);
   state.shadow.rotation.set(-Math.PI / 2, state.heli.heading, 0, 'YXZ');
   const shadowScale = 1.08;
