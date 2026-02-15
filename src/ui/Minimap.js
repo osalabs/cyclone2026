@@ -2,7 +2,12 @@ export class Minimap {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
     this.big = false;
+    this.cycloneShown = { x: 0, z: 0 };
+    this.nextCycloneSampleAtMs = 0;
+    this.seenRound = -1;
+    if (document.fonts?.load) document.fonts.load('11px "VT323"');
   }
 
   toggleBig() {
@@ -12,27 +17,36 @@ export class Minimap {
 
   drawCycloneIcon(mx, mz) {
     const { ctx } = this;
-    const px = 2;
-    const sprite = [
-      '0011100',
-      '0111110',
-      '1102211',
-      '1002211',
-      '1122001',
-      '0111110',
-      '0011100',
-    ];
-    const x0 = Math.round(mx - (sprite[0].length * px) * 0.5);
-    const y0 = Math.round(mz - (sprite.length * px) * 0.5);
+    const r = 8;
+    ctx.save();
+    ctx.translate(mx, mz);
+    ctx.fillStyle = '#cf2a2a';
 
-    for (let y = 0; y < sprite.length; y++) {
-      for (let x = 0; x < sprite[y].length; x++) {
-        const ch = sprite[y][x];
-        if (ch === '0') continue;
-        ctx.fillStyle = ch === '2' ? '#f1f7ff' : '#ba65ff';
-        ctx.fillRect(x0 + x * px, y0 + y * px, px, px);
-      }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      ctx.save();
+      ctx.rotate(a);
+      ctx.beginPath();
+      ctx.moveTo(1.5, -1.2);
+      ctx.quadraticCurveTo(7.2, -3.4, 10, 0);
+      ctx.quadraticCurveTo(6.9, 2.7, 1.2, 1.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
+
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   draw(state) {
@@ -43,33 +57,38 @@ export class Minimap {
 
     const s = state.world.size;
     const map = (x, z) => [((x / s) + 0.5) * canvas.width, ((z / s) + 0.5) * canvas.height];
-    const step = Math.max(1, Math.floor(state.world.n / 64));
-    const pixel = Math.max(2, Math.floor(canvas.width / 120));
+    const step = Math.max(1, Math.floor(state.world.n / 96));
+    const cellW = Math.max(1, Math.ceil((step * canvas.width) / state.world.n));
+    const cellH = Math.max(1, Math.ceil((step * canvas.height) / state.world.n));
 
     for (let y = 0; y < state.world.n; y += step) {
       for (let x = 0; x < state.world.n; x += step) {
         const i = y * state.world.n + x;
         if (!state.world.mask[i]) continue;
         ctx.fillStyle = '#6ca86b';
-        ctx.fillRect((x / state.world.n) * canvas.width, (y / state.world.n) * canvas.height, pixel, pixel);
+        ctx.fillRect(
+          Math.floor((x / state.world.n) * canvas.width),
+          Math.floor((y / state.world.n) * canvas.height),
+          cellW,
+          cellH,
+        );
       }
     }
 
     if (state.world.islandInfos) {
-      ctx.font = '8px "Courier New", monospace';
-      ctx.fillStyle = 'rgba(212, 233, 246, 0.68)';
+      ctx.font = '11px "VT323", monospace';
+      ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.shadowColor = 'rgba(6, 12, 18, 0.7)';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 1;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.48)';
+      ctx.lineWidth = 2;
       for (const island of state.world.islandInfos) {
         const [mx, mz] = map(island.center.x, island.center.z);
-        const label = island.name.length > 14 ? `${island.name.slice(0, 14)}.` : island.name;
-        ctx.fillText(label, mx, mz + 6);
+        const label = island.name.length > 16 ? `${island.name.slice(0, 16)}.` : island.name;
+        const ly = mz + 7;
+        ctx.strokeText(label, mx, ly);
+        ctx.fillText(label, mx, ly);
       }
-      ctx.shadowColor = 'transparent';
-      ctx.shadowOffsetY = 0;
     }
 
     const dot = (x, z, c, r = 3) => {
@@ -80,11 +99,24 @@ export class Minimap {
       ctx.fill();
     };
 
-    dot(state.world.basePos.x, state.world.basePos.z, '#ffffff', 4);
-    for (const c of state.world.crates) if (!c.collected) dot(c.x, c.z, '#c9902b', 3);
-    const [cx, cz] = map(state.cyclone.x, state.cyclone.z);
+    const nowMs = performance.now();
+    if (this.seenRound !== state.round || nowMs >= this.nextCycloneSampleAtMs) {
+      this.seenRound = state.round;
+      this.cycloneShown.x = state.cyclone.x;
+      this.cycloneShown.z = state.cyclone.z;
+      this.nextCycloneSampleAtMs = nowMs + 3000;
+    }
+
+    const [cx, cz] = map(this.cycloneShown.x, this.cycloneShown.z);
     this.drawCycloneIcon(cx, cz);
-    for (const p of state.planes) dot(p.x, p.z, '#ff6262', 3);
-    dot(state.heli.pos.x, state.heli.pos.z, '#ffee58', 4);
+    const [hx, hz] = map(state.heli.pos.x, state.heli.pos.z);
+    ctx.font = 'bold 12px "VT323", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.strokeText('H', hx, hz);
+    ctx.fillStyle = '#fff176';
+    ctx.fillText('H', hx, hz);
   }
 }
