@@ -38,6 +38,115 @@ const systems = {
 let planeSystem;
 let state;
 
+const TWO_PI = Math.PI * 2;
+
+function drawHeliShadowTexture(ctx, size, landed, rotorAngle = 0) {
+  ctx.clearRect(0, 0, size, size);
+  const u = size / 256;
+  const cx = size * 0.5;
+  const cy = size * 0.5;
+  const s = 24 * u;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.30)';
+  // Match previous mesh-based body silhouette in rotor-local coordinates.
+  // Old body shape z was centered around rotor z=0.34.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  const p = (x, z) => [x * s, -(z - 0.34) * s];
+  const [x0, y0] = p(-0.6, 1.2);
+  const [cx1, cy1] = p(0, 1.55);
+  const [x1, y1] = p(0.6, 1.2);
+  ctx.moveTo(x0, y0);
+  ctx.quadraticCurveTo(cx1, cy1, x1, y1);
+  for (const pt of [
+    p(0.72, 0.45),
+    p(0.54, -0.18),
+    p(0.2, -0.62),
+    p(0.2, -2.28),
+    p(-0.2, -2.28),
+    p(-0.2, -0.62),
+    p(-0.54, -0.18),
+    p(-0.72, 0.45),
+  ]) {
+    ctx.lineTo(pt[0], pt[1]);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  if (landed) {
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    const bladeLength = 78 * u;
+    const bladeWidth = 5 * u;
+    const hubGap = 13 * u;
+    for (let i = 0; i < 4; i++) {
+      const a = rotorAngle + i * Math.PI * 0.5;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-a);
+      ctx.fillRect(hubGap, -bladeWidth * 0.5, bladeLength, bladeWidth);
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8 * u, 0, TWO_PI);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,0.14)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 82 * u, 0, TWO_PI);
+    ctx.fill();
+  }
+}
+
+function createHeliShadow() {
+  const texCanvas = document.createElement('canvas');
+  texCanvas.width = 256;
+  texCanvas.height = 256;
+  const ctx = texCanvas.getContext('2d');
+  drawHeliShadowTexture(ctx, texCanvas.width, true, 0);
+  const texture = new THREE.CanvasTexture(texCanvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(9.2, 9.2),
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+    }),
+  );
+  mesh.rotation.order = 'YXZ';
+  mesh.rotation.set(-Math.PI / 2, 0, 0, 'YXZ');
+  mesh.renderOrder = -5;
+  mesh.userData.ctx = ctx;
+  mesh.userData.texSize = texCanvas.width;
+  mesh.userData.texture = texture;
+  mesh.userData.landedState = true;
+  mesh.userData.rotorKey = 0;
+  return mesh;
+}
+
+function updateHeliShadow(shadow, landed, rotorAngle) {
+  const angle = ((rotorAngle % TWO_PI) + TWO_PI) % TWO_PI;
+  if (!landed && shadow.userData.landedState === landed) return;
+  if (landed) {
+    drawHeliShadowTexture(shadow.userData.ctx, shadow.userData.texSize, true, angle);
+    shadow.userData.texture.needsUpdate = true;
+    shadow.userData.landedState = true;
+    shadow.userData.rotorKey = angle;
+    return;
+  }
+  if (shadow.userData.landedState === false) return;
+  drawHeliShadowTexture(shadow.userData.ctx, shadow.userData.texSize, landed, rotorAngle);
+  shadow.userData.texture.needsUpdate = true;
+  shadow.userData.landedState = landed;
+  shadow.userData.rotorKey = 0;
+}
+
 function clearScene() {
   while (renderer.scene.children.length > 2) renderer.scene.remove(renderer.scene.children[2]);
 }
@@ -76,75 +185,9 @@ function setupRound(seedText, round = 1) {
 
   const heliObj = createHelicopter();
   heliObj.group.rotation.order = 'YXZ';
+  heliObj.group.renderOrder = 12;
   renderer.scene.add(heliObj.group);
-  const shadow = new THREE.Group();
-  const shadowBodyMat = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.32,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const shadowRotorMat = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.32,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const shadowRotorBlurMat = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.16,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const rotorShadowOffsetX = -heliObj.rotor.position.x;
-  const rotorShadowOffsetZ = -heliObj.rotor.position.z;
-  const bodyShape = new THREE.Shape();
-  bodyShape.moveTo(-0.6, 1.2);
-  bodyShape.quadraticCurveTo(0, 1.55, 0.6, 1.2);
-  bodyShape.lineTo(0.72, 0.45);
-  bodyShape.lineTo(0.54, -0.18);
-  bodyShape.lineTo(0.2, -0.62);
-  bodyShape.lineTo(0.2, -2.28);
-  bodyShape.lineTo(-0.2, -2.28);
-  bodyShape.lineTo(-0.2, -0.62);
-  bodyShape.lineTo(-0.54, -0.18);
-  bodyShape.lineTo(-0.72, 0.45);
-  bodyShape.lineTo(-0.6, 1.2);
-
-  const bodyShadow = new THREE.Mesh(new THREE.ShapeGeometry(bodyShape), shadowBodyMat);
-  bodyShadow.rotation.x = -Math.PI / 2;
-  bodyShadow.position.y = 0.01;
-
-  const mainRotorDisc = new THREE.Mesh(new THREE.CircleGeometry(3.65, 30), shadowRotorBlurMat);
-  mainRotorDisc.rotation.x = -Math.PI / 2;
-  mainRotorDisc.position.set(rotorShadowOffsetX, 0.012, rotorShadowOffsetZ);
-
-  const mainRotorBlades = new THREE.Group();
-  mainRotorBlades.position.set(rotorShadowOffsetX, 0.012, rotorShadowOffsetZ);
-  const bladeLength = 2.95;
-  const bladeWidth = 0.2;
-  const bladeHubGap = 0.52;
-  const bladeGeo = new THREE.PlaneGeometry(bladeLength, bladeWidth);
-  for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
-    const bladeHolder = new THREE.Group();
-    bladeHolder.rotation.y = angle;
-    const blade = new THREE.Mesh(bladeGeo, shadowRotorMat);
-    blade.rotation.x = -Math.PI / 2;
-    blade.position.x = bladeHubGap + bladeLength * 0.5;
-    bladeHolder.add(blade);
-    mainRotorBlades.add(bladeHolder);
-  }
-  const rotorHubShadow = new THREE.Mesh(new THREE.CircleGeometry(0.36, 16), shadowRotorMat);
-  rotorHubShadow.rotation.x = -Math.PI / 2;
-  rotorHubShadow.position.y = 0.001;
-  mainRotorBlades.add(rotorHubShadow);
-
-  shadow.add(bodyShadow, mainRotorDisc, mainRotorBlades);
-  shadow.userData.mainRotorDisc = mainRotorDisc;
-  shadow.userData.mainRotorBlades = mainRotorBlades;
+  const shadow = createHeliShadow();
   renderer.scene.add(shadow);
   const cycloneMesh = new THREE.Mesh(
     new THREE.CylinderGeometry(5, 10, 18, 20, 1, true),
@@ -176,6 +219,7 @@ function setupRound(seedText, round = 1) {
       groundY: baseGroundY,
     },
     shadow,
+    shadowY: baseGroundY + 0.08,
     cycloneMesh,
     cyclone: { x: 0, z: 0, t: 0 },
     planes: [],
@@ -269,22 +313,17 @@ function update(dt) {
   const rotorSpin = state.heli.landed ? 0.04 : (1.6 + flightSpeedLevel * 0.22);
   state.heli.rotor.rotation.y += rotorSpin;
   if (state.heli.tailRotor) state.heli.tailRotor.rotation.x += rotorSpin * 3.8;
-  state.shadow.position.set(state.heli.pos.x, state.heli.groundY + 0.08, state.heli.pos.z);
-  state.shadow.rotation.y = state.heli.heading;
-  if (state.heli.landed) {
-    state.shadow.userData.mainRotorDisc.visible = false;
-    state.shadow.userData.mainRotorBlades.visible = true;
-    state.shadow.userData.mainRotorBlades.rotation.y = state.heli.rotor.rotation.y;
-  } else {
-    state.shadow.userData.mainRotorDisc.visible = true;
-    state.shadow.userData.mainRotorBlades.visible = false;
-  }
-  const shadowClearance = Math.max(0.3, state.heli.alt - state.heli.groundY);
-  const shadowScale = Math.max(0.45, 1.3 - shadowClearance * 0.05);
+  updateHeliShadow(state.shadow, state.heli.landed, state.heli.rotor.rotation.y);
+  const shadowTargetY = state.heli.groundY + 0.08;
+  const shadowBlend = 1 - Math.exp(-9 * dt);
+  state.shadowY += (shadowTargetY - state.shadowY) * shadowBlend;
+  state.shadow.position.set(state.heli.pos.x, state.shadowY, state.heli.pos.z);
+  state.shadow.rotation.set(-Math.PI / 2, state.heli.heading, 0, 'YXZ');
+  const shadowScale = 1.08;
   const pitchRatio = Math.min(1, Math.abs(state.heli.visualPitch || 0) / ((CONFIG.heliTilt.maxPitchDeg || 12) * Math.PI / 180));
   const rollRatio = Math.min(1, Math.abs(state.heli.visualRoll || 0) / ((CONFIG.heliTilt.maxRollDeg || 14) * Math.PI / 180));
-  const shadowScaleX = Math.max(0.38, shadowScale * (1 + rollRatio * 0.2 - pitchRatio * 0.07));
-  const shadowScaleZ = Math.max(0.38, shadowScale * (1 + pitchRatio * 0.2 - rollRatio * 0.07));
+  const shadowScaleX = Math.max(0.55, shadowScale * (1 - rollRatio * 0.18 + pitchRatio * 0.14));
+  const shadowScaleZ = Math.max(0.55, shadowScale * (1 - pitchRatio * 0.34 + rollRatio * 0.04));
   state.shadow.scale.set(shadowScaleX, 1, shadowScaleZ);
   state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
   state.cycloneMesh.rotation.y += 0.06;
