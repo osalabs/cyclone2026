@@ -115,6 +115,34 @@ export function createCylinderMarker(color, radius, height) {
   return new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 12), new THREE.MeshStandardMaterial({ color }));
 }
 
+export function createCrate(size = 1) {
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: '#a97634', roughness: 0.92 });
+  const plankMat = new THREE.MeshStandardMaterial({ color: '#875823', roughness: 0.95 });
+  const edgeMat = new THREE.MeshStandardMaterial({ color: '#6f4218', roughness: 0.96 });
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.8 * size, 1.35 * size, 1.8 * size), woodMat);
+  base.position.y = 0.68 * size;
+  g.add(base);
+
+  const slatTopA = new THREE.Mesh(new THREE.BoxGeometry(1.55 * size, 0.08 * size, 0.22 * size), plankMat);
+  slatTopA.position.set(0, 1.36 * size, -0.44 * size);
+  const slatTopB = slatTopA.clone();
+  slatTopB.position.z = 0.44 * size;
+  g.add(slatTopA, slatTopB);
+
+  const sideBandGeo = new THREE.BoxGeometry(0.14 * size, 0.94 * size, 0.14 * size);
+  for (const sx of [-0.82, 0.82]) {
+    for (const sz of [-0.82, 0.82]) {
+      const band = new THREE.Mesh(sideBandGeo, edgeMat);
+      band.position.set(sx * size, 0.7 * size, sz * size);
+      g.add(band);
+    }
+  }
+
+  return g;
+}
+
 export function createHelipadMarker(radius = 3, isBase = false) {
   const g = new THREE.Group();
   const padMat = new THREE.MeshStandardMaterial({ color: isBase ? '#ffffff' : '#e7f3ff', roughness: 0.9, metalness: 0.02 });

@@ -12,6 +12,7 @@ import {
   createHelipadMarker,
   createTree,
   createBuilding,
+  createCrate,
 } from './world/Entities.js';
 import { HelicopterSystem } from './systems/HelicopterSystem.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
@@ -166,8 +167,9 @@ function setupRound(seedText, round = 1) {
   const baseGroundY = sampleGroundHeight(world, world.basePos.x, world.basePos.z);
   renderer.scene.add(buildTerrain(world));
   world.crates.forEach((c) => {
-    c.mesh = createCylinderMarker('#c9902b', 1.1, 1.3);
-    c.mesh.position.set(c.x, 1.2, c.z);
+    c.mesh = createCrate(1);
+    c.mesh.position.set(c.x, sampleGroundHeight(world, c.x, c.z), c.z);
+    c.mesh.rotation.y = ((c.x + c.z) * 0.07) % (Math.PI * 2);
     renderer.scene.add(c.mesh);
   });
   world.refugees.forEach((r) => {
