@@ -6,7 +6,13 @@ import { Time } from './engine/Time.js';
 import { AudioSystem } from './engine/Audio.js';
 import { generateWorld } from './world/WorldGen.js';
 import { buildTerrain, sampleGroundHeight } from './world/TerrainMesh.js';
-import { createHelicopter, createCylinderMarker } from './world/Entities.js';
+import {
+  createHelicopter,
+  createCylinderMarker,
+  createHelipadMarker,
+  createTree,
+  createBuilding,
+} from './world/Entities.js';
 import { HelicopterSystem } from './systems/HelicopterSystem.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { CycloneSystem } from './systems/CycloneSystem.js';
@@ -171,11 +177,28 @@ function setupRound(seedText, round = 1) {
   });
   world.helipads.forEach((h) => {
     const radius = h.id === 'base' ? 3 : 2.2;
-    const color = h.id === 'base' ? '#f0f0f0' : '#b2ccd8';
-    h.mesh = createCylinderMarker(color, radius, 0.28);
-    h.mesh.position.set(h.x, 0.2, h.z);
+    const y = sampleGroundHeight(world, h.x, h.z);
+    h.mesh = createHelipadMarker(radius, h.id === 'base');
+    h.mesh.position.set(h.x, y, h.z);
     renderer.scene.add(h.mesh);
   });
+  if (world.trees) {
+    world.trees.forEach((t) => {
+      const tree = createTree(t.kind, t.scale);
+      tree.position.set(t.x, t.groundY, t.z);
+      renderer.scene.add(tree);
+      t.mesh = tree;
+    });
+  }
+  if (world.buildings) {
+    world.buildings.forEach((b) => {
+      const building = createBuilding(b);
+      building.position.set(b.x, b.groundY, b.z);
+      building.rotation.y = b.rotY || 0;
+      renderer.scene.add(building);
+      b.mesh = building;
+    });
+  }
   const occGeo = new THREE.CylinderGeometry(0.8, 1.2, 1, 8);
   const occMat = new THREE.MeshStandardMaterial({ color: '#2c2a2a', roughness: 1 });
   const occ = new THREE.InstancedMesh(occGeo, occMat, world.occluders.length);

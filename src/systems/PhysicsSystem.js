@@ -39,6 +39,21 @@ export class PhysicsSystem {
       }
     }
 
+    if (!state.crashReason && world.obstacles?.length) {
+      const heliR = 1.1;
+      const heliBottom = heli.alt - CONFIG.heliGroundClearance;
+      for (const o of world.obstacles) {
+        const dx = heli.pos.x - o.x;
+        const dz = heli.pos.z - o.z;
+        const rr = heliR + o.r;
+        if (dx * dx + dz * dz > rr * rr) continue;
+        if (heliBottom <= o.topY - 0.04) {
+          state.crashReason = o.kind === 'building' ? 'Building collision' : 'Tree collision';
+          break;
+        }
+      }
+    }
+
     if (heli.alt <= 0.02 && !heli.landed && !state.crashReason) state.crashReason = 'Sea impact';
   }
 }

@@ -6,6 +6,17 @@ export class PickupSystem {
     if (state.pickupTimer > 0) state.pickupTimer -= dt;
     state.refueling = false;
 
+    if (state.heli.landed && state.heli.onLand) {
+      for (const pad of state.world.helipads) {
+        if (circleHit(state.heli.pos.x, state.heli.pos.z, 2.4, pad.x, pad.z, 3.2)) {
+          state.refueling = state.fuel < CONFIG.fuelMax;
+          state.fuel = Math.min(CONFIG.fuelMax, state.fuel + dt * CONFIG.refuelPerSec);
+          if (pad.id === 'base' && state.cratesCollected >= CONFIG.crateCount) state.winRound = true;
+          break;
+        }
+      }
+    }
+
     const clearance = state.heli.alt - state.heli.groundY;
     const low = clearance <= CONFIG.pickupAlt;
     if (!low || !state.heli.onLand) return;
@@ -23,13 +34,5 @@ export class PickupSystem {
       }
     }
 
-    for (const pad of state.world.helipads) {
-      if (circleHit(state.heli.pos.x, state.heli.pos.z, 2.6, pad.x, pad.z, 3.2) && clearance <= CONFIG.landingAlt) {
-        state.refueling = state.fuel < CONFIG.fuelMax;
-        state.fuel = Math.min(CONFIG.fuelMax, state.fuel + dt * CONFIG.refuelPerSec);
-        if (pad.id === 'base' && state.cratesCollected >= CONFIG.crateCount) state.winRound = true;
-        return;
-      }
-    }
   }
 }

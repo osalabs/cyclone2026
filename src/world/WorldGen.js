@@ -234,6 +234,23 @@ export function generateWorld(seedText, round = 1) {
       const y = Math.floor(cell / n);
       return { x: (x / (n - 1) - 0.5) * size, z: (y / (n - 1) - 0.5) * size };
     };
+    const toCell = (x, z) => {
+      const fx = (x / size + 0.5) * (n - 1);
+      const fz = (z / size + 0.5) * (n - 1);
+      return {
+        cx: Math.max(0, Math.min(n - 1, Math.round(fx))),
+        cz: Math.max(0, Math.min(n - 1, Math.round(fz))),
+      };
+    };
+    const sampleWorldY = (x, z) => {
+      const { cx, cz } = toCell(x, z);
+      return h[cz * n + cx] * 8;
+    };
+    const sqDist = (ax, az, bx, bz) => {
+      const dx = ax - bx;
+      const dz = az - bz;
+      return dx * dx + dz * dz;
+    };
 
     const usedNames = new Set();
     const islandInfos = islands.map((cells, index) => {
@@ -269,6 +286,13 @@ export function generateWorld(seedText, round = 1) {
     }
 
     const pickOnIsland = (island) => toWorld(island.cells[rng.int(0, island.cells.length - 1)]);
+    const pickOnIslandFiltered = (island, predicate, tries = 120) => {
+      for (let i = 0; i < tries; i++) {
+        const p = pickOnIsland(island);
+        if (predicate(p)) return p;
+      }
+      return null;
+    };
     const basePos = pickOnIsland(baseIsland);
 
     const islandsNoBase = islandInfos.filter((island) => island !== baseIsland);
@@ -277,16 +301,57 @@ export function generateWorld(seedText, round = 1) {
       continue;
     }
 
-    const crateCandidates = islandsNoBase.slice(0, Math.min(islandsNoBase.length, 20));
+    const houseTargetForIsland = (cells, isBase = false) => {
+      let target = 0;
+      if (cells < 70) target = 0; // tiny islands: no houses
+      else if (cells < 120) target = 1;
+      else if (cells < 200) target = 1 + (rng.next() < 0.35 ? 1 : 0);
+      else if (cells < 320) target = 2 + (rng.next() < 0.45 ? 1 : 0);
+      else target = 3 + (rng.next() < 0.55 ? 1 : 0);
+      return isBase ? Math.max(2, target) : target;
+    };
+
+    const houseTargetByIsland = new Map();
+    for (const island of islandInfos) {
+      houseTargetByIsland.set(island.id, houseTargetForIsland(island.cells.length, island === baseIsland));
+    }
+
+    let helipads = [{ id: 'base', islandId: baseIsland.id, islandName: baseIsland.name, ...basePos }];
+    const padsDesired = rng.int(...CONFIG.helipadRange);
+    const padCandidates = islandsNoBase.filter((island) => (houseTargetByIsland.get(island.id) || 0) > 0 && island.cells.length >= 80);
+    shuffleInPlace(padCandidates, rng);
+    const selectedPadIslands = padCandidates.slice(0, Math.max(0, padsDesired - 1));
+    let padId = 1;
+    for (const island of selectedPadIslands) {
+      const pos = pickOnIslandFiltered(
+        island,
+        (p) => helipads.every((hpad) => sqDist(p.x, p.z, hpad.x, hpad.z) > 30 * 30),
+        140,
+      ) || pickOnIslandFiltered(
+        island,
+        (p) => helipads.every((hpad) => sqDist(p.x, p.z, hpad.x, hpad.z) > 22 * 22),
+        90,
+      );
+      if (!pos) continue;
+      helipads.push({ id: `pad-${padId++}`, islandId: island.id, islandName: island.name, ...pos });
+    }
+
+    const awayFromPads = (x, z, minDist = 9) => helipads.every((pad) => sqDist(x, z, pad.x, pad.z) > minDist * minDist);
+
+    const crateCandidates = islandsNoBase.slice(0, Math.min(islandsNoBase.length, 24));
     shuffleInPlace(crateCandidates, rng);
     const crates = [];
     for (let i = 0; i < CONFIG.crateCount; i++) {
-      const island = crateCandidates[i];
+      const island = crateCandidates[i] || islandsNoBase[i % islandsNoBase.length];
+      const pos = pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 10), 140)
+        || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 8), 90)
+        || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 6), 90)
+        || pickOnIsland(island);
       crates.push({
         id: `crate-${i}`,
         islandId: island.id,
         islandName: island.name,
-        ...pickOnIsland(island),
+        ...pos,
         collected: false,
       });
     }
@@ -295,21 +360,173 @@ export function generateWorld(seedText, round = 1) {
     const refugeeCount = rng.int(...CONFIG.refugeeRange);
     for (let i = 0; i < refugeeCount; i++) {
       const island = islandsNoBase[rng.int(0, islandsNoBase.length - 1)];
-      refugees.push({ id: `ref-${i}`, islandId: island.id, ...pickOnIsland(island), saved: false });
+      const pos = pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 8), 120)
+        || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 6), 80)
+        || pickOnIsland(island);
+      refugees.push({ id: `ref-${i}`, islandId: island.id, ...pos, saved: false });
     }
 
-    const helipads = [{ id: 'base', islandId: baseIsland.id, islandName: baseIsland.name, ...basePos }];
-    const pads = rng.int(...CONFIG.helipadRange);
-    for (let i = 1; i < pads; i++) {
-      const island = islandsNoBase[rng.int(0, islandsNoBase.length - 1)];
-      helipads.push({ id: `pad-${i}`, islandId: island.id, islandName: island.name, ...pickOnIsland(island) });
+    const reservedPoints = [];
+    const reserve = (x, z, r) => reservedPoints.push({ x, z, r });
+    const isClear = (x, z, r) => reservedPoints.every((p) => sqDist(x, z, p.x, p.z) >= (r + p.r) * (r + p.r));
+    for (const pad of helipads) reserve(pad.x, pad.z, pad.id === 'base' ? 8.8 : 7.4);
+    for (const crate of crates) reserve(crate.x, crate.z, 5.8);
+    for (const ref of refugees) reserve(ref.x, ref.z, 4.9);
+
+    const createBuildingSpec = (id, island, p, nearBase = false) => {
+      const widthBlocks = rng.pick([2, 3, 4]);
+      const width = 1.55 * widthBlocks + 0.7;
+      const depth = 2.7 + rng.range(-0.08, 0.28);
+      const bodyHeight = 2.8;
+      const roofHeight = 0.9;
+      const rotY = rng.pick([0, Math.PI]);
+      const doorRange = Math.max(0, width * 0.3);
+      const doorOffset = rng.range(-doorRange, doorRange);
+      const windowCols = Math.max(2, widthBlocks + rng.int(0, 1));
+      const groundY = sampleWorldY(p.x, p.z);
+      return {
+        id,
+        islandId: island.id,
+        x: p.x,
+        z: p.z,
+        groundY,
+        widthBlocks,
+        width,
+        depth,
+        bodyHeight,
+        roofHeight,
+        rotY,
+        hasDoor: rng.next() < 0.75 || nearBase,
+        doorOffset,
+        windowCols,
+      };
+    };
+
+    const buildings = [];
+    const buildingsPerIsland = new Map();
+    const addBuilding = (id, island, p, nearBase = false) => {
+      const b = createBuildingSpec(id, island, p, nearBase);
+      buildings.push(b);
+      buildingsPerIsland.set(island.id, (buildingsPerIsland.get(island.id) || 0) + 1);
+      reserve(p.x, p.z, Math.max(6.0, Math.max(b.width, b.depth) * 0.6));
+      return b;
+    };
+
+    const baseBuildingRingMin = 10;
+    const baseBuildingRingMax = 34;
+    let baseFailed = false;
+    for (let i = 0; i < 2; i++) {
+      const p = pickOnIslandFiltered(
+        baseIsland,
+        (pt) => {
+          const d2 = sqDist(pt.x, pt.z, basePos.x, basePos.z);
+          return d2 >= baseBuildingRingMin * baseBuildingRingMin
+            && d2 <= baseBuildingRingMax * baseBuildingRingMax
+            && isClear(pt.x, pt.z, 6.4);
+        },
+        220,
+      ) || pickOnIslandFiltered(
+        baseIsland,
+        (pt) => {
+          const d2 = sqDist(pt.x, pt.z, basePos.x, basePos.z);
+          return d2 >= 7 * 7 && d2 <= 42 * 42 && isClear(pt.x, pt.z, 5.6);
+        },
+        180,
+      ) || pickOnIslandFiltered(baseIsland, (pt) => isClear(pt.x, pt.z, 5.0), 140);
+      if (!p) {
+        baseFailed = true;
+        break;
+      }
+      addBuilding(`b-base-${i}`, baseIsland, p, true);
+    }
+    if (baseFailed || (buildingsPerIsland.get(baseIsland.id) || 0) < 2) {
+      retry++;
+      continue;
+    }
+
+    const islandsBySize = [...islandInfos].sort((a, b) => b.cells.length - a.cells.length);
+    let bid = 0;
+    for (const island of islandsBySize) {
+      let needed = (houseTargetByIsland.get(island.id) || 0) - (buildingsPerIsland.get(island.id) || 0);
+      if (needed <= 0) continue;
+      const pad = helipads.find((hpad) => hpad.islandId === island.id);
+      if (pad && needed > 0) {
+        const nearPad = pickOnIslandFiltered(
+          island,
+          (pt) => {
+            const d2 = sqDist(pt.x, pt.z, pad.x, pad.z);
+            return d2 >= 8 * 8 && d2 <= 28 * 28 && isClear(pt.x, pt.z, 5.7);
+          },
+          180,
+        );
+        if (nearPad) {
+          addBuilding(`b-${bid++}`, island, nearPad, island === baseIsland);
+          needed--;
+        }
+      }
+      while (needed > 0) {
+        const p = pickOnIslandFiltered(island, (pt) => isClear(pt.x, pt.z, 5.7), 150);
+        if (!p) break;
+        addBuilding(`b-${bid++}`, island, p, island === baseIsland);
+        needed--;
+      }
+    }
+
+    // Helipads are allowed only on islands with at least one house.
+    helipads = helipads.filter((pad) => (buildingsPerIsland.get(pad.islandId) || 0) > 0);
+    if (!helipads.length || !helipads.some((p) => p.id === 'base')) {
+      retry++;
+      continue;
+    }
+
+    const trees = [];
+    let treeId = 0;
+    for (const island of islandInfos) {
+      const density = Math.max(3, Math.floor(island.cells.length / rng.range(95, 145)));
+      const target = Math.min(30, density + rng.int(2, 8) + (island.cells.length > 260 ? rng.int(2, 6) : 0));
+      for (let t = 0; t < target; t++) {
+        const p = pickOnIslandFiltered(
+          island,
+          (pt) => isClear(pt.x, pt.z, 2.4) && sqDist(pt.x, pt.z, basePos.x, basePos.z) > 8 * 8,
+          130,
+        );
+        if (!p) continue;
+        const kind = rng.next() < 0.5 ? 'pine' : 'broad';
+        const scale = kind === 'pine' ? rng.range(0.85, 1.25) : rng.range(0.9, 1.2);
+        const groundY = sampleWorldY(p.x, p.z);
+        trees.push({
+          id: `tree-${treeId++}`,
+          islandId: island.id,
+          kind,
+          scale,
+          x: p.x,
+          z: p.z,
+          groundY,
+        });
+        reserve(p.x, p.z, kind === 'pine' ? 1.7 : 2.1);
+      }
     }
 
     const occluders = [];
     for (let i = 0; i < 105; i++) {
       const island = islandInfos[rng.int(0, Math.min(15, islandInfos.length - 1))];
-      const p = pickOnIsland(island);
-      occluders.push({ ...p, r: rng.range(1, 2.6), h: rng.range(2, 8) });
+      const p = pickOnIslandFiltered(island, (pt) => isClear(pt.x, pt.z, 2.9), 90);
+      if (!p) continue;
+      const rOcc = rng.range(1, 2.6);
+      occluders.push({ ...p, r: rOcc, h: rng.range(2, 8) });
+      reserve(p.x, p.z, rOcc + 1.2);
+    }
+
+    const obstacles = [];
+    for (const b of buildings) {
+      const topY = b.groundY + b.bodyHeight + b.roofHeight;
+      const r = Math.max(b.width, b.depth) * 0.48;
+      obstacles.push({ kind: 'building', id: b.id, x: b.x, z: b.z, r, topY });
+    }
+    for (const t of trees) {
+      const r = (t.kind === 'pine' ? 0.58 : 0.86) * t.scale;
+      const topY = t.groundY + (t.kind === 'pine' ? 4.2 : 3.6) * t.scale;
+      obstacles.push({ kind: 'tree', id: t.id, x: t.x, z: t.z, r, topY });
     }
 
     const cyclonePath = {
@@ -334,6 +551,9 @@ export function generateWorld(seedText, round = 1) {
       crates,
       refugees,
       helipads,
+      trees,
+      buildings,
+      obstacles,
       occluders,
       cyclonePath,
     };
