@@ -8,11 +8,11 @@ import { generateWorld } from './world/WorldGen.js';
 import { buildTerrain, sampleGroundHeight } from './world/TerrainMesh.js';
 import {
   createHelicopter,
-  createCylinderMarker,
   createHelipadMarker,
   createTree,
   createBuilding,
   createCrate,
+  createRefugee,
 } from './world/Entities.js';
 import { HelicopterSystem } from './systems/HelicopterSystem.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
@@ -49,6 +49,7 @@ const TWO_PI = Math.PI * 2;
 const RENDER_SEA_Y = 0.18 * 8;
 const RENDER_LAND_STEP_Y = 0.26;
 const SHADOW_Y_OFFSET = 0.12;
+const HELIPAD_TOP_OFFSET = 0.26;
 
 function drawHeliShadowTexture(ctx, size, landed, rotorAngle = 0) {
   ctx.clearRect(0, 0, size, size);
@@ -157,39 +158,144 @@ function updateHeliShadow(shadow, landed, rotorAngle) {
   shadow.userData.rotorKey = 0;
 }
 
+function createPickupRopeLine() {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  const mat = new THREE.LineBasicMaterial({
+    color: '#121212',
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+  });
+  const line = new THREE.Line(geo, mat);
+  line.visible = false;
+  line.renderOrder = 14;
+  return line;
+}
+
 function clearScene() {
   while (renderer.scene.children.length > 2) renderer.scene.remove(renderer.scene.children[2]);
 }
 
-function setupRound(seedText, round = 1) {
+function getPadSurfaceY(world, x, z) {
+  if (!world?.helipads?.length) return sampleGroundHeight(world, x, z);
+  let best = sampleGroundHeight(world, x, z);
+  for (const pad of world.helipads) {
+    const r = (pad.radius || 2.2) + 0.7;
+    const dx = x - pad.x;
+    const dz = z - pad.z;
+    if (dx * dx + dz * dz > r * r) continue;
+    const top = (pad.y ?? sampleGroundHeight(world, pad.x, pad.z)) + HELIPAD_TOP_OFFSET;
+    if (top > best) best = top;
+  }
+  return best;
+}
+
+function getBaseSurfaceY(world) {
+  const basePad = world?.helipads?.find((h) => h.id === 'base');
+  if (!basePad) return sampleGroundHeight(world, world.basePos.x, world.basePos.z);
+  return (basePad.y ?? sampleGroundHeight(world, basePad.x, basePad.z)) + HELIPAD_TOP_OFFSET;
+}
+
+function createHeliEntity() {
+  const heliObj = createHelicopter();
+  heliObj.group.rotation.order = 'YXZ';
+  heliObj.group.renderOrder = 12;
+  renderer.scene.add(heliObj.group);
+  return heliObj;
+}
+
+function resetRope(stateRef) {
+  if (!stateRef?.rope) return;
+  stateRef.rope.phase = 'idle';
+  stateRef.rope.target = null;
+  stateRef.rope.active = false;
+  stateRef.rope.length = 0;
+  stateRef.rope.anchor.x = stateRef.heli.pos.x;
+  stateRef.rope.anchor.y = stateRef.heli.alt - 0.42;
+  stateRef.rope.anchor.z = stateRef.heli.pos.z;
+  stateRef.rope.tip.x = stateRef.rope.anchor.x;
+  stateRef.rope.tip.y = stateRef.rope.anchor.y;
+  stateRef.rope.tip.z = stateRef.rope.anchor.z;
+  if (stateRef.rope.line) stateRef.rope.line.visible = false;
+}
+
+function respawnHeli(stateRef) {
+  const baseX = stateRef.world.basePos.x;
+  const baseZ = stateRef.world.basePos.z;
+  const baseSurfaceY = getBaseSurfaceY(stateRef.world);
+  if (stateRef.heli?.group) renderer.scene.remove(stateRef.heli.group);
+  const heliObj = createHeliEntity();
+  stateRef.heli = {
+    group: heliObj.group,
+    rotor: heliObj.rotor,
+    tailRotor: heliObj.tailRotor || null,
+    pos: { x: baseX, z: baseZ },
+    heading: -Math.PI / 2,
+    visualPitch: 0,
+    visualRoll: 0,
+    alt: baseSurfaceY + CONFIG.heliGroundClearance,
+    speed: 0,
+    speedLevel: 0,
+    verticalSpeed: 0,
+    fallDistance: 0,
+    descentPauseTime: 0,
+    boost: false,
+    onLand: true,
+    landed: true,
+    groundY: sampleGroundHeight(stateRef.world, baseX, baseZ),
+    surfaceY: baseSurfaceY,
+  };
+  stateRef.shadowY = Math.floor(baseSurfaceY / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y + SHADOW_Y_OFFSET;
+  stateRef.pickupTimer = 0;
+  stateRef.refueling = true;
+  stateRef.fuel = CONFIG.fuelMax;
+  resetRope(stateRef);
+}
+
+function setupRound(seedText, round = 1, carry = {}) {
   clearScene();
   const world = generateWorld(seedText, round);
   const baseGroundY = sampleGroundHeight(world, world.basePos.x, world.basePos.z);
   renderer.scene.add(buildTerrain(world));
   world.crates.forEach((c) => {
+    const gy = sampleGroundHeight(world, c.x, c.z);
+    c.groundY = gy;
+    c.baseY = gy;
+    c.y = gy;
     c.mesh = createCrate(1);
-    c.mesh.position.set(c.x, sampleGroundHeight(world, c.x, c.z), c.z);
+    c.mesh.position.set(c.x, gy, c.z);
     c.mesh.rotation.y = ((c.x + c.z) * 0.07) % (Math.PI * 2);
     renderer.scene.add(c.mesh);
   });
   world.refugees.forEach((r) => {
-    r.mesh = createCylinderMarker('#4fd6d0', 0.8, 1.2);
-    r.mesh.position.set(r.x, 1.1, r.z);
+    const gy = sampleGroundHeight(world, r.x, r.z);
+    r.groundY = gy;
+    r.baseY = gy + 0.12;
+    r.y = r.baseY;
+    r.mesh = createRefugee(r.type || 'man');
+    r.mesh.position.set(r.x, r.baseY, r.z);
+    r.animT = 0;
+    r.animPhase = ((r.x * 0.121 + r.z * 0.173) % 1) * TWO_PI;
     renderer.scene.add(r.mesh);
   });
   world.helipads.forEach((h) => {
     const radius = h.id === 'base' ? 3 : 2.2;
     const y = sampleGroundHeight(world, h.x, h.z);
+    h.y = y;
+    h.radius = radius;
     h.mesh = createHelipadMarker(radius, h.id === 'base');
     h.mesh.position.set(h.x, y, h.z);
     renderer.scene.add(h.mesh);
   });
+  const baseSurfaceY = getBaseSurfaceY(world);
   if (world.trees) {
     world.trees.forEach((t) => {
       const tree = createTree(t.kind, t.scale);
       tree.position.set(t.x, t.groundY, t.z);
       renderer.scene.add(tree);
       t.mesh = tree;
+      t.phase = ((t.x * 0.089 + t.z * 0.143) % 1) * TWO_PI;
     });
   }
   if (world.buildings) {
@@ -211,10 +317,9 @@ function setupRound(seedText, round = 1) {
   });
   renderer.scene.add(occ);
 
-  const heliObj = createHelicopter();
-  heliObj.group.rotation.order = 'YXZ';
-  heliObj.group.renderOrder = 12;
-  renderer.scene.add(heliObj.group);
+  const heliObj = createHeliEntity();
+  const ropeLine = createPickupRopeLine();
+  renderer.scene.add(ropeLine);
   const shadow = createHeliShadow();
   renderer.scene.add(shadow);
   const cycloneMesh = new THREE.Mesh(
@@ -235,7 +340,7 @@ function setupRound(seedText, round = 1) {
       heading: -Math.PI / 2,
       visualPitch: 0,
       visualRoll: 0,
-      alt: baseGroundY + CONFIG.landingAlt - 0.2,
+      alt: baseSurfaceY + CONFIG.heliGroundClearance,
       speed: 0,
       speedLevel: 0,
       verticalSpeed: 0,
@@ -245,9 +350,10 @@ function setupRound(seedText, round = 1) {
       onLand: true,
       landed: true,
       groundY: baseGroundY,
+      surfaceY: baseSurfaceY,
     },
     shadow,
-    shadowY: Math.floor(baseGroundY / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y + SHADOW_Y_OFFSET,
+    shadowY: Math.floor(baseSurfaceY / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y + SHADOW_Y_OFFSET,
     cycloneMesh,
     cyclone: { x: 0, z: 0, t: 0 },
     planes: [],
@@ -256,23 +362,37 @@ function setupRound(seedText, round = 1) {
     timeLeft: CONFIG.timeLimitSec,
     cratesCollected: 0,
     refugeesSaved: 0,
-    score: 0,
+    score: carry.score ?? 0,
     hudCratesVisible: 0,
     startup: {
       cratesTimer: CONFIG.startupCrateInterval,
       fuelTickTimer: CONFIG.startupFuelTickInterval,
     },
     pickupTimer: 0,
+    rope: {
+      line: ropeLine,
+      active: false,
+      phase: 'idle',
+      length: 0,
+      target: null,
+      anchor: { x: world.basePos.x, y: baseSurfaceY + 2, z: world.basePos.z },
+      tip: { x: world.basePos.x, y: baseSurfaceY + 2, z: world.basePos.z },
+    },
     refueling: false,
     windForce: 0,
-    viewNorth: true,
-    cameraTiltDeg: CONFIG.camera.tiltDeg,
+    viewNorth: carry.viewNorth ?? true,
+    cameraTiltDeg: carry.cameraTiltDeg ?? CONFIG.camera.tiltDeg,
     cameraDist: CONFIG.camera.dist,
     crashReason: '',
     gameOver: false,
     winRound: false,
     paused: false,
     inTransition: false,
+    livesMax: carry.livesMax ?? CONFIG.livesMax,
+    lives: Math.max(
+      0,
+      Math.min(carry.livesMax ?? CONFIG.livesMax, carry.lives ?? carry.livesMax ?? CONFIG.livesMax),
+    ),
   };
   planeSystem = new PlaneSystem(seedText);
 }
@@ -298,6 +418,73 @@ function updateStartupEffects(dt) {
   }
 }
 
+function clamp01(v) {
+  return Math.max(0, Math.min(1, v));
+}
+
+function updateTreeBend(stateRef, dt) {
+  const trees = stateRef.world.trees;
+  if (!trees?.length) return;
+  const blend = 1 - Math.exp(-7 * dt);
+  const windRadius = CONFIG.cyclone.far * 2.2;
+  const timePhase = stateRef.cyclone.t * 3.4;
+  for (const tree of trees) {
+    const bend = tree.mesh?.userData?.bendNode;
+    if (!bend) continue;
+    const dx = tree.x - stateRef.cyclone.x;
+    const dz = tree.z - stateRef.cyclone.z;
+    const d = Math.hypot(dx, dz);
+    const localWind = clamp01(1 - d / windRadius);
+    const maxBend = (tree.kind === 'pine' ? 0.68 : 0.5) * localWind;
+    if (maxBend <= 0.001) {
+      bend.rotation.x += (0 - bend.rotation.x) * blend;
+      bend.rotation.z += (0 - bend.rotation.z) * blend;
+      continue;
+    }
+    const inv = 1 / Math.max(0.001, d);
+    const nx = dx * inv;
+    const nz = dz * inv;
+    const sway = Math.sin(timePhase + (tree.phase || 0)) * (0.09 * localWind);
+    const targetX = nz * maxBend + sway * 0.4;
+    const targetZ = -nx * maxBend + sway * 0.25;
+    bend.rotation.x += (targetX - bend.rotation.x) * blend;
+    bend.rotation.z += (targetZ - bend.rotation.z) * blend;
+  }
+}
+
+function updateRefugees(stateRef, dt) {
+  const refs = stateRef.world.refugees;
+  if (!refs?.length) return;
+  const camPos = renderer.camera.position;
+  for (const r of refs) {
+    if (r.saved || !r.mesh) {
+      if (r.mesh) r.mesh.visible = false;
+      continue;
+    }
+    r.mesh.visible = true;
+    r.animT = (r.animT || 0) + dt;
+    const wave = Math.sin(r.animT * 5.1 + (r.animPhase || 0));
+    const waveFine = Math.sin(r.animT * 8.4 + (r.animPhase || 0) * 0.7);
+    const armL = r.mesh.userData.armLPivot;
+    const armR = r.mesh.userData.armRPivot;
+    if (armL && armR) {
+      armL.rotation.z = -1.45 - wave * 0.58;
+      armR.rotation.z = 1.45 + wave * 0.58;
+      armL.rotation.x = 0.12 + waveFine * 0.14;
+      armR.rotation.x = 0.12 + waveFine * 0.14;
+    }
+    const dx = camPos.x - r.x;
+    const dz = camPos.z - r.z;
+    if (dx * dx + dz * dz > 0.0001) {
+      const target = Math.atan2(dx, dz);
+      let diff = target - r.mesh.rotation.y;
+      while (diff > Math.PI) diff -= TWO_PI;
+      while (diff < -Math.PI) diff += TWO_PI;
+      r.mesh.rotation.y += diff * 0.22;
+    }
+  }
+}
+
 function update(dt) {
   if (!state || state.paused) return;
   if (input.down('KeyV') && !state._vLock) {
@@ -319,13 +506,14 @@ function update(dt) {
   }
   if (!input.down('Escape')) state._eLock = false;
 
-  const clearance = state.heli.alt - state.heli.groundY;
+  const clearance = state.heli.alt - (state.heli.surfaceY ?? state.heli.groundY);
   if (input.down('KeyL') && clearance <= CONFIG.landingAlt && state.heli.onLand) state.heli.landed = true;
 
   systems.heli.update(state, input, dt);
   systems.physics.update(state, dt);
   systems.pickup.update(state, dt);
   systems.cyclone.update(state, dt);
+  updateTreeBend(state, dt);
   planeSystem.update(state, dt);
   systems.fuel.update(state, dt);
   updateStartupEffects(dt);
@@ -355,6 +543,21 @@ function update(dt) {
   }
   state.shadow.position.set(state.heli.pos.x, state.shadowY, state.heli.pos.z);
   state.shadow.rotation.set(-Math.PI / 2, state.heli.heading, 0, 'YXZ');
+  if (state.rope?.line) {
+    const line = state.rope.line;
+    line.visible = !!state.rope.active;
+    if (line.visible) {
+      const arr = line.geometry.attributes.position.array;
+      arr[0] = state.rope.anchor.x;
+      arr[1] = state.rope.anchor.y;
+      arr[2] = state.rope.anchor.z;
+      arr[3] = state.rope.tip.x;
+      arr[4] = state.rope.tip.y;
+      arr[5] = state.rope.tip.z;
+      line.geometry.attributes.position.needsUpdate = true;
+      line.geometry.computeBoundingSphere();
+    }
+  }
   const shadowScale = 1.08;
   const pitchRatio = Math.min(1, Math.abs(state.heli.visualPitch || 0) / ((CONFIG.heliTilt.maxPitchDeg || 12) * Math.PI / 180));
   const rollRatio = Math.min(1, Math.abs(state.heli.visualRoll || 0) / ((CONFIG.heliTilt.maxRollDeg || 14) * Math.PI / 180));
@@ -364,16 +567,22 @@ function update(dt) {
   state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
   state.cycloneMesh.rotation.y += 0.06;
   state.world.crates.forEach((c) => { c.mesh.visible = !c.collected; });
-  state.world.refugees.forEach((r) => { r.mesh.visible = !r.saved; });
 
   if (state.crashReason && !state.inTransition) {
-    state.inTransition = true;
-    screens.showOverlay(`CRASH: ${state.crashReason}`);
-    setTimeout(() => {
-      screens.showOverlay('');
-      setupRound(state.seedText, state.round);
-    }, 1200);
+    const reason = state.crashReason;
     state.crashReason = '';
+    state.lives = Math.max(0, (state.lives ?? CONFIG.livesMax) - 1);
+    state.inTransition = true;
+    screens.showOverlay(`CRASH: ${reason}`);
+    setTimeout(() => {
+      if (state.lives > 0) {
+        respawnHeli(state);
+        screens.showOverlay('');
+      } else {
+        state.gameOver = true;
+      }
+      state.inTransition = false;
+    }, 1200);
   }
 
   if (state.gameOver && !state.inTransition) {
@@ -390,11 +599,18 @@ function update(dt) {
     const nextRound = state.round + 1;
     setTimeout(() => {
       screens.showOverlay('');
-      setupRound(state.seedText, nextRound);
+      setupRound(state.seedText, nextRound, {
+        score: state.score,
+        livesMax: state.livesMax,
+        lives: state.lives,
+        viewNorth: state.viewNorth,
+        cameraTiltDeg: state.cameraTiltDeg,
+      });
     }, 1400);
   }
 
   systems.cam.update(state, renderer, input);
+  updateRefugees(state, dt);
   ui.update(state);
 }
 

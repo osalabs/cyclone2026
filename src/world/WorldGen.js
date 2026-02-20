@@ -66,7 +66,7 @@ function makeIslandName(index, rng, used) {
 
 export function generateWorld(seedText, round = 1) {
   let retry = 0;
-  while (retry < 14) {
+  while (retry < 300) {
     const rng = new RNG(`${seedText}-r${round}-retry${retry}`);
     const n = CONFIG.terrainResolution;
     const size = CONFIG.worldSize;
@@ -246,6 +246,27 @@ export function generateWorld(seedText, round = 1) {
       const { cx, cz } = toCell(x, z);
       return h[cz * n + cx] * 8;
     };
+    const isFlatArea = (x, z, radiusWorld = 3.2, maxDeltaY = 0.42) => {
+      const { cx, cz } = toCell(x, z);
+      const r = Math.max(1, Math.round((radiusWorld / size) * (n - 1)));
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dz * dz > r * r) continue;
+          const ix = cx + dx;
+          const iz = cz + dz;
+          if (ix < 0 || ix >= n || iz < 0 || iz >= n) return false;
+          const idx = iz * n + ix;
+          if (!cleanMask[idx]) return false;
+          const y = h[idx] * 8;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          if (maxY - minY > maxDeltaY) return false;
+        }
+      }
+      return true;
+    };
     const sqDist = (ax, az, bx, bz) => {
       const dx = ax - bx;
       const dz = az - bz;
@@ -293,7 +314,9 @@ export function generateWorld(seedText, round = 1) {
       }
       return null;
     };
-    const basePos = pickOnIsland(baseIsland);
+    const basePos = pickOnIslandFiltered(baseIsland, (p) => isFlatArea(p.x, p.z, 5.2, 0.26), 320)
+      || pickOnIslandFiltered(baseIsland, (p) => isFlatArea(p.x, p.z, 4.4, 0.34), 220)
+      || pickOnIsland(baseIsland);
 
     const islandsNoBase = islandInfos.filter((island) => island !== baseIsland);
     if (islandsNoBase.length < CONFIG.crateCount) {
@@ -325,12 +348,18 @@ export function generateWorld(seedText, round = 1) {
     for (const island of selectedPadIslands) {
       const pos = pickOnIslandFiltered(
         island,
-        (p) => helipads.every((hpad) => sqDist(p.x, p.z, hpad.x, hpad.z) > 30 * 30),
-        140,
+        (p) => isFlatArea(p.x, p.z, 4.3, 0.32)
+          && helipads.every((hpad) => sqDist(p.x, p.z, hpad.x, hpad.z) > 30 * 30),
+        170,
       ) || pickOnIslandFiltered(
         island,
-        (p) => helipads.every((hpad) => sqDist(p.x, p.z, hpad.x, hpad.z) > 22 * 22),
-        90,
+        (p) => isFlatArea(p.x, p.z, 3.6, 0.42)
+          && helipads.every((hpad) => sqDist(p.x, p.z, hpad.x, hpad.z) > 22 * 22),
+        120,
+      ) || pickOnIslandFiltered(
+        island,
+        (p) => helipads.every((hpad) => sqDist(p.x, p.z, hpad.x, hpad.z) > 20 * 20),
+        80,
       );
       if (!pos) continue;
       helipads.push({ id: `pad-${padId++}`, islandId: island.id, islandName: island.name, ...pos });
@@ -343,8 +372,8 @@ export function generateWorld(seedText, round = 1) {
     const crates = [];
     for (let i = 0; i < CONFIG.crateCount; i++) {
       const island = crateCandidates[i] || islandsNoBase[i % islandsNoBase.length];
-      const pos = pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 10), 140)
-        || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 8), 90)
+      const pos = pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 10) && isFlatArea(p.x, p.z, 2.4, 0.28), 210)
+        || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 8) && isFlatArea(p.x, p.z, 2.0, 0.34), 160)
         || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 6), 90)
         || pickOnIsland(island);
       crates.push({
@@ -360,15 +389,45 @@ export function generateWorld(seedText, round = 1) {
     const refugeeCount = rng.int(...CONFIG.refugeeRange);
     for (let i = 0; i < refugeeCount; i++) {
       const island = islandsNoBase[rng.int(0, islandsNoBase.length - 1)];
-      const pos = pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 8), 120)
-        || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 6), 80)
+      const pos = pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 8) && isFlatArea(p.x, p.z, 2.1, 0.3), 170)
+        || pickOnIslandFiltered(island, (p) => awayFromPads(p.x, p.z, 6) && isFlatArea(p.x, p.z, 1.7, 0.38), 130)
         || pickOnIsland(island);
-      refugees.push({ id: `ref-${i}`, islandId: island.id, ...pos, saved: false });
+      refugees.push({
+        id: `ref-${i}`,
+        islandId: island.id,
+        type: rng.next() < 0.5 ? 'man' : 'woman',
+        ...pos,
+        saved: false,
+      });
     }
 
     const reservedPoints = [];
     const reserve = (x, z, r) => reservedPoints.push({ x, z, r });
     const isClear = (x, z, r) => reservedPoints.every((p) => sqDist(x, z, p.x, p.z) >= (r + p.r) * (r + p.r));
+    const isBuildingFootprintFlat = (x, z, width, depth, rotY, maxDeltaY = 0.3) => {
+      const c = Math.cos(rotY);
+      const s = Math.sin(rotY);
+      const halfW = width * 0.52 + 0.35;
+      const halfD = depth * 0.52 + 0.35;
+      const sx = Math.max(0.7, halfW / 2.5);
+      const sz = Math.max(0.7, halfD / 2.5);
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (let lz = -halfD; lz <= halfD + 0.001; lz += sz) {
+        for (let lx = -halfW; lx <= halfW + 0.001; lx += sx) {
+          const wx = x + lx * c - lz * s;
+          const wz = z + lx * s + lz * c;
+          const { cx, cz } = toCell(wx, wz);
+          const idx = cz * n + cx;
+          if (!cleanMask[idx]) return false;
+          const y = h[idx] * 8;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          if (maxY - minY > maxDeltaY) return false;
+        }
+      }
+      return true;
+    };
     for (const pad of helipads) reserve(pad.x, pad.z, pad.id === 'base' ? 8.8 : 7.4);
     for (const crate of crates) reserve(crate.x, crate.z, 5.8);
     for (const ref of refugees) reserve(ref.x, ref.z, 4.9);
@@ -406,6 +465,7 @@ export function generateWorld(seedText, round = 1) {
     const buildingsPerIsland = new Map();
     const addBuilding = (id, island, p, nearBase = false) => {
       const b = createBuildingSpec(id, island, p, nearBase);
+      if (!isBuildingFootprintFlat(b.x, b.z, b.width, b.depth, b.rotY, 0.3)) return null;
       buildings.push(b);
       buildingsPerIsland.set(island.id, (buildingsPerIsland.get(island.id) || 0) + 1);
       reserve(p.x, p.z, Math.max(6.0, Math.max(b.width, b.depth) * 0.6));
@@ -422,6 +482,7 @@ export function generateWorld(seedText, round = 1) {
           const d2 = sqDist(pt.x, pt.z, basePos.x, basePos.z);
           return d2 >= baseBuildingRingMin * baseBuildingRingMin
             && d2 <= baseBuildingRingMax * baseBuildingRingMax
+            && isFlatArea(pt.x, pt.z, 5.0, 0.24)
             && isClear(pt.x, pt.z, 6.4);
         },
         220,
@@ -429,10 +490,10 @@ export function generateWorld(seedText, round = 1) {
         baseIsland,
         (pt) => {
           const d2 = sqDist(pt.x, pt.z, basePos.x, basePos.z);
-          return d2 >= 7 * 7 && d2 <= 42 * 42 && isClear(pt.x, pt.z, 5.6);
+          return d2 >= 7 * 7 && d2 <= 42 * 42 && isFlatArea(pt.x, pt.z, 4.6, 0.3) && isClear(pt.x, pt.z, 5.6);
         },
         180,
-      ) || pickOnIslandFiltered(baseIsland, (pt) => isClear(pt.x, pt.z, 5.0), 140);
+      ) || pickOnIslandFiltered(baseIsland, (pt) => isFlatArea(pt.x, pt.z, 4.2, 0.36) && isClear(pt.x, pt.z, 5.0), 140);
       if (!p) {
         baseFailed = true;
         break;
@@ -455,20 +516,20 @@ export function generateWorld(seedText, round = 1) {
           island,
           (pt) => {
             const d2 = sqDist(pt.x, pt.z, pad.x, pad.z);
-            return d2 >= 8 * 8 && d2 <= 28 * 28 && isClear(pt.x, pt.z, 5.7);
+            return d2 >= 8 * 8 && d2 <= 28 * 28 && isFlatArea(pt.x, pt.z, 4.6, 0.28) && isClear(pt.x, pt.z, 5.7);
           },
           180,
         );
         if (nearPad) {
-          addBuilding(`b-${bid++}`, island, nearPad, island === baseIsland);
-          needed--;
+          const b = addBuilding(`b-${bid++}`, island, nearPad, island === baseIsland);
+          if (b) needed--;
         }
       }
       while (needed > 0) {
-        const p = pickOnIslandFiltered(island, (pt) => isClear(pt.x, pt.z, 5.7), 150);
+        const p = pickOnIslandFiltered(island, (pt) => isFlatArea(pt.x, pt.z, 4.4, 0.3) && isClear(pt.x, pt.z, 5.7), 190);
         if (!p) break;
-        addBuilding(`b-${bid++}`, island, p, island === baseIsland);
-        needed--;
+        const b = addBuilding(`b-${bid++}`, island, p, island === baseIsland);
+        if (b) needed--;
       }
     }
 

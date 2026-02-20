@@ -70,16 +70,23 @@ body {
 }
 
 #hud-left {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  align-items: stretch;
+  justify-items: center;
+  overflow: hidden;
 }
 
 #minimap-canvas {
-  width: 100%;
-  height: 100%;
-  min-height: 120px;
+  display: block;
+  width: auto;
+  height: auto;
+  justify-self: center;
+  align-self: center;
   border: 1px solid #64839b;
   background: #081116;
+  image-rendering: pixelated;
 }
 
 #hud-center,
@@ -88,6 +95,63 @@ body {
   flex-direction: column;
   gap: 8px;
 }
+
+#flight-bars {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.flight-col {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 6px;
+  min-height: 0;
+}
+
+.flight-head {
+  text-align: center;
+  color: #d8ebff;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.flight-track {
+  position: relative;
+  border: 1px solid #567284;
+  background: rgba(100, 131, 155, 0.2);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.flight-track.segmented::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent calc((100% / var(--segments)) - 3px),
+    rgba(14, 24, 31, 0.95) calc((100% / var(--segments)) - 3px),
+    rgba(14, 24, 31, 0.9) calc(100% / var(--segments))
+  );
+  z-index: 3;
+}
+
+.flight-fill {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 0%;
+  z-index: 1;
+}
+
+.flight-fill.alt { background: linear-gradient(0deg, #3388e5, #77c7ff); }
+.flight-fill.speed { background: linear-gradient(0deg, #ff7b5f, #ffc86b); }
+.flight-fill.fuel { background: linear-gradient(0deg, #c9a635, #ffe76e); }
+.flight-fill.time { background: linear-gradient(0deg, #3fce8c, #99e8aa); }
 
 .gauge-row,
 .metric-row,
@@ -198,6 +262,50 @@ body {
 
 .stat {
   font-size: 0.92rem;
+}
+
+#hud-split-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.split-cell {
+  border: 1px solid #68859a;
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 0.83rem;
+  text-transform: uppercase;
+  background: rgba(100, 131, 155, 0.15);
+}
+
+.split-cell.aircraft-alert {
+  animation: blink-alert 0.4s steps(1) infinite;
+}
+
+.lives-row {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.lives-icons {
+  display: flex;
+  gap: 6px;
+}
+
+.life-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.95;
+  fill: #ffffff;
+  color: #ffffff;
+}
+
+.life-icon.lost {
+  opacity: 0.2;
 }
 
 #legend {

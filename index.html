@@ -18,31 +18,27 @@
     <div id="bottom-panel">
       <div id="hud-left">
         <div class="hud-title">Map</div>
-        <canvas id="minimap-canvas" width="320" height="220"></canvas>
+        <canvas id="minimap-canvas" width="256" height="256"></canvas>
       </div>
       <div id="hud-center">
         <div class="hud-title">Flight</div>
-        <div class="gauge-row">
-          <span class="gauge-label">Altitude</span>
-          <div id="hud-alt-gauge" class="block-gauge"></div>
-          <span id="hud-alt" class="gauge-value">0</span>
-        </div>
-        <div class="gauge-row">
-          <span class="gauge-label">Speed</span>
-          <div id="hud-speed-gauge" class="block-gauge"></div>
-          <span id="hud-speed" class="gauge-value">0</span>
-        </div>
-        <div class="gauge-row">
-          <span class="gauge-label">Fuel</span>
-          <div id="hud-fuel-gauge" class="block-gauge"></div>
-          <span id="hud-fuel" class="gauge-value">0</span>
-        </div>
-        <div class="gauge-row">
-          <span class="gauge-label">Time</span>
-          <div class="continuous-wrap">
-            <div id="hud-time-fill" class="continuous-fill"></div>
+        <div id="flight-bars">
+          <div class="flight-col">
+            <div class="flight-head">A</div>
+            <div class="flight-track segmented" style="--segments: 7;"><div id="hud-alt-fill" class="flight-fill alt"></div></div>
           </div>
-          <span id="hud-time" class="gauge-value">0:00</span>
+          <div class="flight-col">
+            <div class="flight-head">S</div>
+            <div class="flight-track segmented" style="--segments: 5;"><div id="hud-speed-fill" class="flight-fill speed"></div></div>
+          </div>
+          <div class="flight-col">
+            <div class="flight-head">F</div>
+            <div class="flight-track segmented" style="--segments: 5;"><div id="hud-fuel-fill" class="flight-fill fuel"></div></div>
+          </div>
+          <div class="flight-col">
+            <div class="flight-head">T</div>
+            <div class="flight-track"><div id="hud-time-fill" class="flight-fill time"></div></div>
+          </div>
         </div>
       </div>
       <div id="hud-right">
@@ -59,15 +55,14 @@
           </div>
           <span id="hud-wind-alert" class="status-pill">CLEAR</span>
         </div>
-        <div class="metric-row">
-          <span class="gauge-label">Plane</span>
-          <div class="continuous-wrap">
-            <div id="hud-plane-fill" class="continuous-fill plane"></div>
-          </div>
-          <span id="hud-plane-alert" class="status-pill">CLEAR</span>
+        <div id="hud-split-row">
+          <div id="hud-aircraft-alert" class="split-cell"></div>
+          <div id="hud-view-cell" class="split-cell">View North</div>
         </div>
-        <div class="stat">View: <span id="hud-view">North</span></div>
-        <div class="stat">Tilt: <span id="hud-tilt">45.0 deg</span></div>
+        <div class="lives-row">
+          <span class="gauge-label">Lives</span>
+          <div id="hud-lives" class="lives-icons"></div>
+        </div>
         <div id="legend">
           A/D or Left/Right rotate, W/S or Up/Down set speed (-5..+5), R/F altitude, Mouse Wheel tilt, V view N/S, M map zoom, L land, Esc pause.
         </div>

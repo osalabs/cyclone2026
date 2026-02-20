@@ -8,13 +8,31 @@ export class PhysicsSystem {
     heli.pos.z = Math.max(-CONFIG.worldSize * 0.5, Math.min(CONFIG.worldSize * 0.5, heli.pos.z));
     heli.groundY = sampleGroundHeight(world, heli.pos.x, heli.pos.z);
     heli.onLand = isLand(world, heli.pos.x, heli.pos.z);
-    const clearance = heli.alt - heli.groundY;
+
+    let surfaceY = heli.groundY;
+    let padY = null;
+    if (world.helipads?.length) {
+      for (const pad of world.helipads) {
+        const r = (pad.radius || 2.2) + 0.7;
+        const dx = heli.pos.x - pad.x;
+        const dz = heli.pos.z - pad.z;
+        if (dx * dx + dz * dz > r * r) continue;
+        const top = (pad.y ?? sampleGroundHeight(world, pad.x, pad.z)) + 0.26;
+        if (top > surfaceY) {
+          surfaceY = top;
+          padY = top;
+        }
+      }
+    }
+    heli.surfaceY = surfaceY;
+    heli.padY = padY;
+    const clearance = heli.alt - surfaceY;
 
     if (heli.landed) {
       if (!heli.onLand) {
         heli.landed = false;
       } else {
-        heli.alt = heli.groundY + CONFIG.heliGroundClearance;
+        heli.alt = surfaceY + CONFIG.heliGroundClearance;
         heli.verticalSpeed = 0;
         heli.fallDistance = 0;
         heli.descentPauseTime = 0;
@@ -30,7 +48,7 @@ export class PhysicsSystem {
         if (!state.crashReason) state.crashReason = hardLanding ? 'Hard landing' : 'Terrain collision';
       } else {
         heli.landed = true;
-        heli.alt = heli.groundY + CONFIG.heliGroundClearance;
+        heli.alt = surfaceY + CONFIG.heliGroundClearance;
         heli.speedLevel = 0;
         heli.speed = 0;
         heli.verticalSpeed = 0;

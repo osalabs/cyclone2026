@@ -167,6 +167,9 @@ export function createHelipadMarker(radius = 3, isBase = false) {
 
 export function createTree(kind = 'pine', scale = 1) {
   const g = new THREE.Group();
+  const bend = new THREE.Group();
+  g.add(bend);
+  g.userData.bendNode = bend;
   const trunkMat = new THREE.MeshStandardMaterial({ color: '#6f4a2a', roughness: 0.95 });
   const leafMatA = new THREE.MeshStandardMaterial({ color: '#2e5e2d', roughness: 0.9 });
   const leafMatB = new THREE.MeshStandardMaterial({ color: '#84b63f', roughness: 0.88 });
@@ -181,7 +184,7 @@ export function createTree(kind = 'pine', scale = 1) {
     canopy2.position.set(0.45 * scale, trunkH + 0.56 * scale, 0.12 * scale);
     const canopy3 = canopy2.clone();
     canopy3.position.set(-0.42 * scale, trunkH + 0.62 * scale, -0.1 * scale);
-    g.add(trunk, canopy, canopy2, canopy3);
+    bend.add(trunk, canopy, canopy2, canopy3);
     return g;
   }
 
@@ -194,7 +197,7 @@ export function createTree(kind = 'pine', scale = 1) {
   coneB.position.y = trunkH + 1.08 * scale;
   const coneC = new THREE.Mesh(new THREE.ConeGeometry(0.38 * scale, 0.95 * scale, 8), leafMatA);
   coneC.position.y = trunkH + 1.58 * scale;
-  g.add(trunk, coneA, coneB, coneC);
+  bend.add(trunk, coneA, coneB, coneC);
   return g;
 }
 
@@ -220,17 +223,23 @@ export function createBuilding(def = {}) {
   body.position.y = bodyHeight * 0.5;
   g.add(body);
 
-  const roofW = width * 0.58;
-  const roofGeo = new THREE.BoxGeometry(roofW, 0.2, depth + 0.34);
-  const roofL = new THREE.Mesh(roofGeo, roofMat);
-  const roofR = new THREE.Mesh(roofGeo, roofMat);
-  roofL.position.set(-roofW * 0.26, bodyHeight + roofHeight * 0.5, 0);
-  roofR.position.set(roofW * 0.26, bodyHeight + roofHeight * 0.5, 0);
-  roofL.rotation.z = 0.34;
-  roofR.rotation.z = -0.34;
-  const ridge = new THREE.Mesh(new THREE.BoxGeometry(width * 0.16, 0.12, depth + 0.34), roofDarkMat);
-  ridge.position.set(0, bodyHeight + roofHeight * 0.86, 0);
-  g.add(roofL, roofR, ridge);
+  const roofHalfW = width * 0.58;
+  const roofDepth = depth + 0.52;
+  const roofShape = new THREE.Shape();
+  roofShape.moveTo(-roofHalfW, 0);
+  roofShape.lineTo(0, roofHeight);
+  roofShape.lineTo(roofHalfW, 0);
+  roofShape.closePath();
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, {
+    depth: roofDepth,
+    steps: 1,
+    bevelEnabled: false,
+  });
+  roofGeo.translate(0, bodyHeight + 0.02, -roofDepth * 0.5);
+  const roof = new THREE.Mesh(roofGeo, roofMat);
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(width * 0.08, 0.08, roofDepth + 0.02), roofDarkMat);
+  ridge.position.set(0, bodyHeight + roofHeight + 0.02, 0);
+  g.add(roof, ridge);
 
   const sideZ = depth * 0.5 + 0.04;
   const windowY = [bodyHeight * 0.36, bodyHeight * 0.72];
@@ -265,5 +274,53 @@ export function createBuilding(def = {}) {
     }
   }
 
+  return g;
+}
+
+export function createRefugee(type = 'man') {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: '#f2c59d', roughness: 0.85 });
+  const hairMat = new THREE.MeshStandardMaterial({ color: type === 'woman' ? '#5f3425' : '#2d2a28', roughness: 0.9 });
+  const topMat = new THREE.MeshStandardMaterial({ color: type === 'woman' ? '#d85f7a' : '#4f8fcf', roughness: 0.88 });
+  const legMat = new THREE.MeshStandardMaterial({ color: '#2c3340', roughness: 0.92 });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.56, 0.25), topMat);
+  torso.position.y = 0.68;
+  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.23), topMat);
+  pelvis.position.y = 0.36;
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), skinMat);
+  head.position.y = 1.09;
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(type === 'woman' ? 0.2 : 0.18, 10, 8), hairMat);
+  hair.position.y = type === 'woman' ? 1.13 : 1.14;
+  hair.scale.set(1, type === 'woman' ? 0.78 : 0.62, 1);
+
+  const armGeo = new THREE.BoxGeometry(0.1, 0.45, 0.1);
+  const armL = new THREE.Mesh(armGeo, skinMat);
+  const armR = armL.clone();
+  armL.position.set(0, -0.22, 0);
+  armR.position.set(0, -0.22, 0);
+  const armLPivot = new THREE.Group();
+  const armRPivot = new THREE.Group();
+  armLPivot.position.set(-0.31, 0.88, 0);
+  armRPivot.position.set(0.31, 0.88, 0);
+  armLPivot.add(armL);
+  armRPivot.add(armR);
+
+  const legGeo = new THREE.BoxGeometry(0.12, 0.46, 0.12);
+  const legL = new THREE.Mesh(legGeo, legMat);
+  const legR = legL.clone();
+  legL.position.set(-0.11, 0.12, 0);
+  legR.position.set(0.11, 0.12, 0);
+
+  const footGeo = new THREE.BoxGeometry(0.13, 0.06, 0.2);
+  const footL = new THREE.Mesh(footGeo, legMat);
+  const footR = footL.clone();
+  footL.position.set(-0.11, -0.12, 0.03);
+  footR.position.set(0.11, -0.12, 0.03);
+
+  g.add(torso, pelvis, head, hair, armLPivot, armRPivot, legL, legR, footL, footR);
+  g.userData.armLPivot = armLPivot;
+  g.userData.armRPivot = armRPivot;
   return g;
 }

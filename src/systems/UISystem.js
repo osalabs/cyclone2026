@@ -1,28 +1,7 @@
 import { CONFIG } from '../config.js';
-import { formatTime } from './utils.js';
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
-}
-
-function setBlockGauge(el, total, active, classes = '') {
-  const rounded = Math.max(0, Math.min(total, Math.round(active)));
-  if (!el._built || el._total !== total || el._classes !== classes) {
-    el.className = `block-gauge blocks-${total} ${classes}`.trim();
-    el.replaceChildren();
-    for (let i = 0; i < total; i++) {
-      const b = document.createElement('div');
-      b.className = 'gauge-block';
-      el.appendChild(b);
-    }
-    el._blocks = Array.from(el.children);
-    el._built = true;
-    el._total = total;
-    el._classes = classes;
-  }
-  for (let i = 0; i < total; i++) {
-    el._blocks[i].classList.toggle('active', i < rounded);
-  }
 }
 
 function buildCrateSvg() {
@@ -47,11 +26,43 @@ function buildCrateSvg() {
   return svg;
 }
 
+function buildLifeHeliSvg() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.classList.add('life-icon');
+
+  const body = document.createElementNS(ns, 'path');
+  body.setAttribute('d', 'M4 12.5c0-2.2 2.2-3.5 4.8-3.5h4.6c1.6 0 3.3.8 4 2.2l1.5 0.4v1.8l-1.5 0.4c-.7 1.4-2.4 2.2-4 2.2H8.8C6.2 16 4 14.7 4 12.5z');
+  const skid = document.createElementNS(ns, 'path');
+  skid.setAttribute('d', 'M7 17.4h9.8M8.2 18.8h7.4');
+  skid.setAttribute('stroke', 'currentColor');
+  skid.setAttribute('stroke-width', '1.4');
+  skid.setAttribute('fill', 'none');
+  skid.setAttribute('stroke-linecap', 'round');
+  const rotor = document.createElementNS(ns, 'path');
+  rotor.setAttribute('d', 'M6.5 8.1h11.8');
+  rotor.setAttribute('stroke', 'currentColor');
+  rotor.setAttribute('stroke-width', '1.2');
+  rotor.setAttribute('fill', 'none');
+  rotor.setAttribute('stroke-linecap', 'round');
+  const tail = document.createElementNS(ns, 'path');
+  tail.setAttribute('d', 'M18 12.5h2.7M20.7 11.3v2.4');
+  tail.setAttribute('stroke', 'currentColor');
+  tail.setAttribute('stroke-width', '1.1');
+  tail.setAttribute('fill', 'none');
+  tail.setAttribute('stroke-linecap', 'round');
+
+  svg.append(body, skid, rotor, tail);
+  return svg;
+}
+
 export class UISystem {
   constructor(hud, minimap) {
     this.hud = hud;
     this.minimap = minimap;
     this.crateIcons = [];
+    this.lifeIcons = [];
     for (let i = 0; i < CONFIG.crateCount; i++) {
       const icon = buildCrateSvg();
       this.crateIcons.push(icon);
@@ -59,22 +70,33 @@ export class UISystem {
     }
   }
 
-  update(state) {
-    const speedLevel = state.heli.speedLevel || 0;
-    const absSpeed = Math.abs(speedLevel);
-    this.hud.speed.textContent = `${speedLevel >= 0 ? '+' : ''}${speedLevel}`;
-    this.hud.alt.textContent = state.heli.alt.toFixed(1);
-    this.hud.fuel.textContent = Math.max(0, state.fuel).toFixed(0);
-    this.hud.time.textContent = formatTime(Math.max(0, state.timeLeft));
-    this.hud.refugees.textContent = `${state.refugeesSaved}`;
-    this.hud.view.textContent = state.viewNorth ? 'North' : 'South';
-    this.hud.tilt.textContent = `${state.cameraTiltDeg.toFixed(1)} deg`;
+  ensureLives(count) {
+    const target = Math.max(0, count | 0);
+    if (this.lifeIcons.length === target) return;
+    this.lifeIcons = [];
+    if (this.hud.lives) this.hud.lives.replaceChildren();
+    for (let i = 0; i < target; i++) {
+      const icon = buildLifeHeliSvg();
+      this.lifeIcons.push(icon);
+      this.hud.lives?.appendChild(icon);
+    }
+  }
 
+  update(state) {
     const altNorm = clamp01((state.heli.alt - CONFIG.minAlt) / (CONFIG.maxAlt - CONFIG.minAlt));
-    setBlockGauge(this.hud.altGauge, 7, altNorm * 7, 'alt');
-    setBlockGauge(this.hud.speedGauge, 5, absSpeed, speedLevel < 0 ? 'reverse' : '');
-    setBlockGauge(this.hud.fuelGauge, 5, clamp01(state.fuel / CONFIG.fuelMax) * 5, 'fuel');
-    this.hud.timeFill.style.width = `${(clamp01(state.timeLeft / CONFIG.timeLimitSec) * 100).toFixed(1)}%`;
+    const speedNorm = clamp01(Math.abs(state.heli.speedLevel || 0) / CONFIG.speedLevels);
+    const fuelNorm = clamp01(state.fuel / CONFIG.fuelMax);
+    const timeNorm = clamp01(state.timeLeft / CONFIG.timeLimitSec);
+    const altStepNorm = Math.round(altNorm * 7) / 7;
+    const speedStepNorm = Math.round(speedNorm * 5) / 5;
+    const fuelStepNorm = Math.round(fuelNorm * 5) / 5;
+    if (this.hud.altFill) this.hud.altFill.style.height = `${(altStepNorm * 100).toFixed(1)}%`;
+    if (this.hud.speedFill) this.hud.speedFill.style.height = `${(speedStepNorm * 100).toFixed(1)}%`;
+    if (this.hud.fuelFill) this.hud.fuelFill.style.height = `${(fuelStepNorm * 100).toFixed(1)}%`;
+    if (this.hud.timeFill) this.hud.timeFill.style.height = `${(timeNorm * 100).toFixed(1)}%`;
+
+    if (this.hud.refugees) this.hud.refugees.textContent = `${state.refugeesSaved}`;
+    if (this.hud.viewCell) this.hud.viewCell.textContent = state.viewNorth ? 'View North' : 'View South';
 
     const visible = state.hudCratesVisible ?? CONFIG.crateCount;
     for (let i = 0; i < this.crateIcons.length; i++) {
@@ -85,20 +107,28 @@ export class UISystem {
     }
 
     const wind = clamp01(state.windForce);
-    this.hud.windFill.style.width = `${(wind * 100).toFixed(1)}%`;
+    if (this.hud.windFill) this.hud.windFill.style.width = `${(wind * 100).toFixed(1)}%`;
     const windDanger = wind >= 0.72;
-    this.hud.windAlert.textContent = windDanger ? 'CYCLONE' : 'CLEAR';
-    this.hud.windAlert.classList.toggle('alert', windDanger);
+    if (this.hud.windAlert) {
+      this.hud.windAlert.textContent = windDanger ? 'CYCLONE' : 'CLEAR';
+      this.hud.windAlert.classList.toggle('alert', windDanger);
+    }
 
     let nearestPlaneDist = Infinity;
     for (const p of state.planes) {
       nearestPlaneDist = Math.min(nearestPlaneDist, Math.hypot(p.x - state.heli.pos.x, p.z - state.heli.pos.z));
     }
-    const planeNorm = nearestPlaneDist < Infinity ? clamp01(1 - nearestPlaneDist / 90) : 0;
-    this.hud.planeFill.style.width = `${(planeNorm * 100).toFixed(1)}%`;
     const planeDanger = nearestPlaneDist < 30;
-    this.hud.planeAlert.textContent = planeDanger ? 'AIRCRAFT' : 'CLEAR';
-    this.hud.planeAlert.classList.toggle('alert', planeDanger);
+    if (this.hud.aircraftAlert) {
+      this.hud.aircraftAlert.textContent = planeDanger ? 'AIRCRAFT' : '';
+      this.hud.aircraftAlert.classList.toggle('aircraft-alert', planeDanger);
+    }
+
+    this.ensureLives(state.livesMax || 3);
+    const lives = Math.max(0, state.lives ?? 0);
+    for (let i = 0; i < this.lifeIcons.length; i++) {
+      this.lifeIcons[i].classList.toggle('lost', i >= lives);
+    }
 
     this.minimap.draw(state);
   }

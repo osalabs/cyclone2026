@@ -5,14 +5,42 @@ export class Minimap {
     this.ctx.imageSmoothingEnabled = false;
     this.big = false;
     this.cycloneShown = { x: 0, z: 0 };
+    this.planeShown = { x: 0, z: 0, visible: false };
     this.nextCycloneSampleAtMs = 0;
     this.seenRound = -1;
     if (document.fonts?.load) document.fonts.load('11px "VT323"');
   }
 
+  syncCanvasSize() {
+    const panel = this.canvas.parentElement;
+    let side = Math.min(this.canvas.clientWidth || this.canvas.width, this.canvas.clientHeight || this.canvas.height);
+    if (panel) {
+      const panelStyle = getComputedStyle(panel);
+      const padX = (parseFloat(panelStyle.paddingLeft) || 0) + (parseFloat(panelStyle.paddingRight) || 0);
+      const padY = (parseFloat(panelStyle.paddingTop) || 0) + (parseFloat(panelStyle.paddingBottom) || 0);
+      const title = panel.querySelector('.hud-title');
+      let titleH = 0;
+      if (title) {
+        const ts = getComputedStyle(title);
+        titleH = title.getBoundingClientRect().height + (parseFloat(ts.marginTop) || 0) + (parseFloat(ts.marginBottom) || 0);
+      }
+      const availW = Math.max(0, panel.clientWidth - padX - 2);
+      const availH = Math.max(0, panel.clientHeight - padY - titleH - 2);
+      side = Math.min(availW, availH);
+    }
+    side = Math.max(64, Math.floor(side || 64));
+    this.canvas.style.width = `${side}px`;
+    this.canvas.style.height = `${side}px`;
+    if (this.canvas.width !== side || this.canvas.height !== side) {
+      this.canvas.width = side;
+      this.canvas.height = side;
+      this.ctx.imageSmoothingEnabled = false;
+    }
+  }
+
   toggleBig() {
     this.big = !this.big;
-    this.canvas.style.maxWidth = this.big ? '100%' : '360px';
+    this.syncCanvasSize();
   }
 
   drawCycloneIcon(mx, mz) {
@@ -50,6 +78,7 @@ export class Minimap {
   }
 
   draw(state) {
+    this.syncCanvasSize();
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#0a2432';
@@ -91,24 +120,42 @@ export class Minimap {
       }
     }
 
-    const dot = (x, z, c, r = 3) => {
-      const [mx, mz] = map(x, z);
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.arc(mx, mz, r, 0, Math.PI * 2);
-      ctx.fill();
-    };
-
     const nowMs = performance.now();
     if (this.seenRound !== state.round || nowMs >= this.nextCycloneSampleAtMs) {
       this.seenRound = state.round;
       this.cycloneShown.x = state.cyclone.x;
       this.cycloneShown.z = state.cyclone.z;
+      if (state.planes?.length) {
+        let nearest = state.planes[0];
+        let best = Infinity;
+        for (const p of state.planes) {
+          const d = Math.hypot(p.x - state.heli.pos.x, p.z - state.heli.pos.z);
+          if (d < best) {
+            best = d;
+            nearest = p;
+          }
+        }
+        this.planeShown.x = nearest.x;
+        this.planeShown.z = nearest.z;
+        this.planeShown.visible = true;
+      } else {
+        this.planeShown.visible = false;
+      }
       this.nextCycloneSampleAtMs = nowMs + 3000;
     }
 
     const [cx, cz] = map(this.cycloneShown.x, this.cycloneShown.z);
     this.drawCycloneIcon(cx, cz);
+    if (this.planeShown.visible) {
+      const [px, pz] = map(this.planeShown.x, this.planeShown.z);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px, pz, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(160, 0, 0, 0.9)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
     const [hx, hz] = map(state.heli.pos.x, state.heli.pos.z);
     ctx.font = 'bold 12px "VT323", monospace';
     ctx.textAlign = 'center';
