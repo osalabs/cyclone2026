@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cyclone2026: ZX Rescue</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="top-area">
+      <canvas id="game-canvas"></canvas>
+      <div id="top-overlay" class="hidden"></div>
+    </div>
+    <div id="bottom-panel">
+      <div id="hud-left">
+        <div class="hud-title">Map</div>
+        <canvas id="minimap-canvas" width="256" height="256"></canvas>
+      </div>
+      <div id="hud-center">
+        <div class="hud-title">Flight</div>
+        <div id="flight-bars">
+          <div class="flight-col">
+            <div class="flight-head">A</div>
+            <div class="flight-track segmented" style="--segments: 7;"><div id="hud-alt-fill" class="flight-fill alt"></div></div>
+          </div>
+          <div class="flight-col">
+            <div class="flight-head">S</div>
+            <div class="flight-track segmented" style="--segments: 5;"><div id="hud-speed-fill" class="flight-fill speed"></div></div>
+          </div>
+          <div class="flight-col">
+            <div class="flight-head">F</div>
+            <div class="flight-track segmented" style="--segments: 5;"><div id="hud-fuel-fill" class="flight-fill fuel"></div></div>
+          </div>
+          <div class="flight-col">
+            <div class="flight-head">T</div>
+            <div class="flight-track"><div id="hud-time-fill" class="flight-fill time"></div></div>
+          </div>
+        </div>
+      </div>
+      <div id="hud-right">
+        <div class="hud-title">Mission</div>
+        <div class="crates-row">
+          <span class="gauge-label">Crates</span>
+          <div id="hud-crates-icons" class="crates-icons"></div>
+        </div>
+        <div class="stat">Refugees: <span id="hud-refugees">0</span></div>
+        <div class="metric-row">
+          <span class="gauge-label">Wind</span>
+          <div class="continuous-wrap">
+            <div id="hud-wind-fill" class="continuous-fill wind"></div>
+          </div>
+          <span id="hud-wind-alert" class="status-pill">CLEAR</span>
+        </div>
+        <div id="hud-split-row">
+          <div id="hud-aircraft-alert" class="split-cell"></div>
+          <div id="hud-view-cell" class="split-cell">View North</div>
+        </div>
+        <div class="lives-row">
+          <span class="gauge-label">Lives</span>
+          <div id="hud-lives" class="lives-icons"></div>
+        </div>
+        <div id="legend">
+          A/D or Left/Right rotate, W/S or Up/Down set speed (-5..+5), R/F altitude, Mouse Wheel tilt, V view N/S, M map zoom, L land, Esc pause.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="menu" class="modal">
+    <h1>Cyclone2026: ZX Rescue</h1>
+    <label>Seed: <input id="seed-input" value="ZXRESCUE" /></label>
+    <div class="buttons">
+      <button id="start-btn">Start</button>
+      <button id="random-btn">Random Seed</button>
+    </div>
+    <p id="menu-note">
+      Collect 5 crates, rescue optional refugees, return to base and land before fuel/time run out.<br />
+      Controls: A/D or Left/Right rotate, W/S or Up/Down set speed levels, R/F altitude, Mouse Wheel tilt, V view N/S, M map zoom, L land, Esc pause.
+    </p>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
