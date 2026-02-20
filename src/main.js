@@ -220,16 +220,144 @@ function resetRope(stateRef) {
   if (stateRef.rope.line) stateRef.rope.line.visible = false;
 }
 
+function clearCrashDebris(stateRef) {
+  if (!stateRef?.crashDebris?.length) {
+    stateRef.crashDebris = [];
+    return;
+  }
+  for (const mesh of stateRef.crashDebris) renderer.scene.remove(mesh);
+  stateRef.crashDebris = [];
+}
+
+function spawnRotorDebris(stateRef) {
+  stateRef.crashDebris = stateRef.crashDebris || [];
+  const bladeMat = new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.92 });
+  const bladeGeo = new THREE.BoxGeometry(8.2, 0.06, 0.22);
+  for (let i = 0; i < 2; i++) {
+    const blade = new THREE.Mesh(bladeGeo, bladeMat);
+    blade.position.set(
+      stateRef.heli.pos.x + (Math.random() - 0.5) * 0.4,
+      stateRef.heli.alt + 1.1,
+      stateRef.heli.pos.z + (Math.random() - 0.5) * 0.4,
+    );
+    blade.rotation.y = stateRef.heli.heading + i * Math.PI * 0.5;
+    blade.userData = {
+      vx: (Math.random() - 0.5) * 10,
+      vy: 6 + Math.random() * 4,
+      vz: (Math.random() - 0.5) * 10,
+      wx: (Math.random() - 0.5) * 8,
+      wy: (Math.random() - 0.5) * 8,
+      wz: (Math.random() - 0.5) * 8,
+      settled: false,
+    };
+    renderer.scene.add(blade);
+    stateRef.crashDebris.push(blade);
+  }
+}
+
+function beginCrash(stateRef, reason) {
+  if (stateRef.crashAnim?.active || stateRef.gameOver || stateRef.winRound) return;
+  stateRef.crashReason = '';
+  stateRef.inTransition = true;
+  stateRef.winRound = false;
+  stateRef.lives = Math.max(0, (stateRef.lives ?? CONFIG.livesMax) - 1);
+  stateRef.heli.landed = false;
+  stateRef.heli.speedLevel = 0;
+  stateRef.heli.speed = 0;
+  stateRef.heli.boost = false;
+  resetRope(stateRef);
+
+  const detachRotors = /collision/i.test(reason) || /Hard landing/i.test(reason);
+  if (detachRotors) {
+    for (const b of stateRef.heli.rotorBlades || []) b.visible = false;
+    spawnRotorDebris(stateRef);
+  }
+
+  const backCrash = /Out of fuel/i.test(reason) || Math.random() < 0.35;
+  stateRef.crashAnim = {
+    active: true,
+    cause: reason,
+    timer: 0,
+    duration: 2.15,
+    detachRotors,
+    startPitch: stateRef.heli.visualPitch || 0,
+    startRoll: stateRef.heli.visualRoll || 0,
+    targetPitch: backCrash ? -Math.PI * 0.82 : (Math.random() < 0.5 ? 0.22 : -0.2),
+    targetRoll: backCrash ? (Math.random() < 0.5 ? 0.22 : -0.22) : (Math.random() < 0.5 ? -1.22 : 1.22),
+    yawSpin: (Math.random() < 0.5 ? -1 : 1) * (backCrash ? 0.55 : 1.45),
+    fallSpeed: Math.max(2.5, Math.max(0, -stateRef.heli.verticalSpeed) + 2),
+  };
+  screens.showOverlay(`CRASH: ${reason}`);
+}
+
+function updateCrashAnimation(stateRef, dt) {
+  const anim = stateRef.crashAnim;
+  if (!anim?.active) return;
+
+  anim.timer += dt;
+  anim.fallSpeed += 20 * dt;
+  const crashSurface = getPadSurfaceY(stateRef.world, stateRef.heli.pos.x, stateRef.heli.pos.z);
+  const settleAlt = crashSurface + 0.22;
+  stateRef.heli.alt = Math.max(settleAlt, stateRef.heli.alt - anim.fallSpeed * dt);
+  stateRef.heli.verticalSpeed = -anim.fallSpeed;
+
+  const t = Math.min(1, anim.timer / (anim.duration * 0.72));
+  const ease = 1 - Math.pow(1 - t, 3);
+  stateRef.heli.visualPitch = anim.startPitch + (anim.targetPitch - anim.startPitch) * ease;
+  stateRef.heli.visualRoll = anim.startRoll + (anim.targetRoll - anim.startRoll) * ease;
+  stateRef.heli.heading += anim.yawSpin * dt * (1 - 0.35 * ease);
+
+  if (anim.detachRotors && stateRef.crashDebris?.length) {
+    for (const d of stateRef.crashDebris) {
+      const u = d.userData;
+      if (u.settled) continue;
+      u.vy -= 22 * dt;
+      d.position.x += u.vx * dt;
+      d.position.y += u.vy * dt;
+      d.position.z += u.vz * dt;
+      d.rotation.x += u.wx * dt;
+      d.rotation.y += u.wy * dt;
+      d.rotation.z += u.wz * dt;
+
+      const floorY = sampleGroundHeight(stateRef.world, d.position.x, d.position.z) + 0.04;
+      if (d.position.y <= floorY) {
+        d.position.y = floorY;
+        u.vy *= -0.22;
+        u.vx *= 0.55;
+        u.vz *= 0.55;
+        u.wx *= 0.6;
+        u.wy *= 0.6;
+        u.wz *= 0.6;
+        if (Math.abs(u.vy) < 0.4 && Math.hypot(u.vx, u.vz) < 0.5) u.settled = true;
+      }
+    }
+  }
+
+  if (anim.timer >= anim.duration && stateRef.heli.alt <= settleAlt + 0.01) {
+    anim.active = false;
+    stateRef.inTransition = false;
+    if (stateRef.lives > 0) {
+      clearCrashDebris(stateRef);
+      respawnHeli(stateRef);
+      screens.showOverlay('');
+    } else {
+      stateRef.gameOver = true;
+    }
+  }
+}
+
 function respawnHeli(stateRef) {
   const baseX = stateRef.world.basePos.x;
   const baseZ = stateRef.world.basePos.z;
   const baseSurfaceY = getBaseSurfaceY(stateRef.world);
+  clearCrashDebris(stateRef);
   if (stateRef.heli?.group) renderer.scene.remove(stateRef.heli.group);
   const heliObj = createHeliEntity();
   stateRef.heli = {
     group: heliObj.group,
     rotor: heliObj.rotor,
     tailRotor: heliObj.tailRotor || null,
+    rotorBlades: heliObj.rotorBlades || [],
     pos: { x: baseX, z: baseZ },
     heading: -Math.PI / 2,
     visualPitch: 0,
@@ -250,6 +378,7 @@ function respawnHeli(stateRef) {
   stateRef.pickupTimer = 0;
   stateRef.refueling = true;
   stateRef.fuel = CONFIG.fuelMax;
+  stateRef.crashAnim = null;
   resetRope(stateRef);
 }
 
@@ -336,6 +465,7 @@ function setupRound(seedText, round = 1, carry = {}) {
       group: heliObj.group,
       rotor: heliObj.rotor,
       tailRotor: heliObj.tailRotor || null,
+      rotorBlades: heliObj.rotorBlades || [],
       pos: { x: world.basePos.x, z: world.basePos.z },
       heading: -Math.PI / 2,
       visualPitch: 0,
@@ -388,6 +518,8 @@ function setupRound(seedText, round = 1, carry = {}) {
     winRound: false,
     paused: false,
     inTransition: false,
+    crashAnim: null,
+    crashDebris: [],
     livesMax: carry.livesMax ?? CONFIG.livesMax,
     lives: Math.max(
       0,
@@ -506,17 +638,25 @@ function update(dt) {
   }
   if (!input.down('Escape')) state._eLock = false;
 
-  const clearance = state.heli.alt - (state.heli.surfaceY ?? state.heli.groundY);
-  if (input.down('KeyL') && clearance <= CONFIG.landingAlt && state.heli.onLand) state.heli.landed = true;
+  if (state.crashAnim?.active) {
+    systems.cyclone.update(state, dt);
+    updateTreeBend(state, dt);
+    planeSystem.update(state, dt);
+    updateCrashAnimation(state, dt);
+  } else {
+    const clearance = state.heli.alt - (state.heli.surfaceY ?? state.heli.groundY);
+    if (input.down('KeyL') && clearance <= CONFIG.landingAlt && state.heli.onLand) state.heli.landed = true;
 
-  systems.heli.update(state, input, dt);
-  systems.physics.update(state, dt);
-  systems.pickup.update(state, dt);
-  systems.cyclone.update(state, dt);
-  updateTreeBend(state, dt);
-  planeSystem.update(state, dt);
-  systems.fuel.update(state, dt);
-  updateStartupEffects(dt);
+    systems.heli.update(state, input, dt);
+    systems.physics.update(state, dt);
+    systems.pickup.update(state, dt);
+    systems.cyclone.update(state, dt);
+    updateTreeBend(state, dt);
+    planeSystem.update(state, dt);
+    systems.fuel.update(state, dt);
+    updateStartupEffects(dt);
+    if (state.crashReason && !state.inTransition) beginCrash(state, state.crashReason);
+  }
 
   state.heli.group.position.set(state.heli.pos.x, state.heli.alt, state.heli.pos.z);
   state.heli.group.rotation.set(
@@ -526,12 +666,13 @@ function update(dt) {
     'YXZ',
   );
   const flightSpeedLevel = Math.max(1, Math.abs(state.heli.speedLevel));
-  const rotorSpin = state.heli.landed ? 0.04 : (1.6 + flightSpeedLevel * 0.22);
+  let rotorSpin = state.heli.landed ? 0.04 : (1.6 + flightSpeedLevel * 0.22);
+  if (state.crashAnim?.active) rotorSpin = state.crashAnim.detachRotors ? 0.03 : 0.22;
   state.heli.rotor.rotation.y += rotorSpin;
   if (state.heli.tailRotor) state.heli.tailRotor.rotation.x += rotorSpin * 3.8;
   updateHeliShadow(state.shadow, state.heli.landed, state.heli.rotor.rotation.y);
   const renderedGroundY = state.heli.onLand
-    ? Math.max(RENDER_SEA_Y, Math.floor(state.heli.groundY / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y)
+    ? Math.max(RENDER_SEA_Y, Math.floor((state.heli.surfaceY ?? state.heli.groundY) / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y)
     : RENDER_SEA_Y;
   const shadowTargetY = renderedGroundY + SHADOW_Y_OFFSET;
   if (state.heli.landed) {
@@ -567,23 +708,6 @@ function update(dt) {
   state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
   state.cycloneMesh.rotation.y += 0.06;
   state.world.crates.forEach((c) => { c.mesh.visible = !c.collected; });
-
-  if (state.crashReason && !state.inTransition) {
-    const reason = state.crashReason;
-    state.crashReason = '';
-    state.lives = Math.max(0, (state.lives ?? CONFIG.livesMax) - 1);
-    state.inTransition = true;
-    screens.showOverlay(`CRASH: ${reason}`);
-    setTimeout(() => {
-      if (state.lives > 0) {
-        respawnHeli(state);
-        screens.showOverlay('');
-      } else {
-        state.gameOver = true;
-      }
-      state.inTransition = false;
-    }, 1200);
-  }
 
   if (state.gameOver && !state.inTransition) {
     state.inTransition = true;

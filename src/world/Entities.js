@@ -108,7 +108,12 @@ export function createHelicopter() {
     ...struts,
   );
 
-  return { group: g, rotor, tailRotor };
+  return {
+    group: g,
+    rotor,
+    tailRotor,
+    rotorBlades: [bladeA, bladeB, bladeTipL, bladeTipR],
+  };
 }
 
 export function createCylinderMarker(color, radius, height) {
