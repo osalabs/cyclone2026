@@ -451,11 +451,14 @@ function setupRound(seedText, round = 1, carry = {}) {
   renderer.scene.add(ropeLine);
   const shadow = createHeliShadow();
   renderer.scene.add(shadow);
-  const cycloneMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(5, 10, 18, 20, 1, true),
-    new THREE.MeshStandardMaterial({ color: '#9b58ff', transparent: true, opacity: 0.35 }),
-  );
-  renderer.scene.add(cycloneMesh);
+  // Cyclone visual is intentionally hidden for gameplay readability.
+  // Keep this block for easy re-enable later.
+  // const cycloneMesh = new THREE.Mesh(
+  //   new THREE.CylinderGeometry(5, 10, 18, 20, 1, true),
+  //   new THREE.MeshStandardMaterial({ color: '#9b58ff', transparent: true, opacity: 0.35 }),
+  // );
+  // renderer.scene.add(cycloneMesh);
+  const cycloneMesh = null;
 
   state = {
     seedText,
@@ -705,8 +708,11 @@ function update(dt) {
   const shadowScaleX = Math.max(0.55, shadowScale * (1 - rollRatio * 0.18 + pitchRatio * 0.14));
   const shadowScaleZ = Math.max(0.55, shadowScale * (1 - pitchRatio * 0.34 + rollRatio * 0.04));
   state.shadow.scale.set(shadowScaleX, 1, shadowScaleZ);
-  state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
-  state.cycloneMesh.rotation.y += 0.06;
+  // Cyclone visual disabled; keep update code commented for quick restore.
+  // if (state.cycloneMesh) {
+  //   state.cycloneMesh.position.set(state.cyclone.x, 9, state.cyclone.z);
+  //   state.cycloneMesh.rotation.y += 0.06;
+  // }
   state.world.crates.forEach((c) => { c.mesh.visible = !c.collected; });
 
   if (state.gameOver && !state.inTransition) {
