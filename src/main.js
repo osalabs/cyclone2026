@@ -65,20 +65,26 @@ function drawHeliShadowTexture(ctx, size, landed, rotorAngle = 0) {
   ctx.translate(cx, cy);
   ctx.beginPath();
   const p = (x, z) => [x * s, -(z - 0.34) * s];
-  const [x0, y0] = p(-0.6, 1.2);
-  const [cx1, cy1] = p(0, 1.55);
-  const [x1, y1] = p(0.6, 1.2);
+  const [x0, y0] = p(-0.58, 1.44);
+  const [cx1, cy1] = p(0, 1.78);
+  const [x1, y1] = p(0.58, 1.44);
   ctx.moveTo(x0, y0);
   ctx.quadraticCurveTo(cx1, cy1, x1, y1);
   for (const pt of [
-    p(0.72, 0.45),
-    p(0.54, -0.18),
-    p(0.2, -0.62),
-    p(0.2, -2.28),
-    p(-0.2, -2.28),
-    p(-0.2, -0.62),
-    p(-0.54, -0.18),
-    p(-0.72, 0.45),
+    p(0.8, 0.78),
+    p(0.82, 0.12),
+    p(0.62, -0.34),
+    p(0.34, -0.7),
+    p(0.24, -1.08),
+    p(0.22, -2.88),
+    p(0.08, -3.36),
+    p(-0.08, -3.36),
+    p(-0.22, -2.88),
+    p(-0.24, -1.08),
+    p(-0.34, -0.7),
+    p(-0.62, -0.34),
+    p(-0.82, 0.12),
+    p(-0.8, 0.78),
   ]) {
     ctx.lineTo(pt[0], pt[1]);
   }
