@@ -40,6 +40,9 @@ body {
   place-items: center;
   background: rgba(0, 0, 0, 0.5);
   font-size: 2rem;
+  padding: 18px;
+  text-align: center;
+  white-space: pre-line;
 }
 
 #bottom-panel {
@@ -325,6 +328,55 @@ body {
   border: 2px solid #4c708b;
   padding: 18px;
   z-index: 20;
+}
+
+body.debug-heli {
+  background: #d6f4fb;
+}
+
+body.debug-heli #app {
+  grid-template-rows: 1fr;
+}
+
+body.debug-heli #bottom-panel,
+body.debug-heli .modal {
+  display: none !important;
+}
+
+body.debug-heli #top-area {
+  height: 100vh;
+}
+
+body.debug-heli #top-overlay {
+  display: block;
+  background: none;
+  pointer-events: none;
+}
+
+body.debug-heli #top-overlay .debug-card {
+  position: absolute;
+  left: 24px;
+  top: 24px;
+  max-width: 420px;
+  padding: 14px 16px;
+  border: 1px solid rgba(54, 81, 97, 0.2);
+  background: rgba(250, 254, 255, 0.84);
+  color: #163042;
+  box-shadow: 0 18px 40px rgba(65, 114, 135, 0.18);
+  backdrop-filter: blur(8px);
+}
+
+body.debug-heli #top-overlay .debug-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.debug-heli #top-overlay .debug-copy {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .modal.hidden,

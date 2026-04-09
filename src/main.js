@@ -13,7 +13,7 @@ import {
   createBuilding,
   createCrate,
   createRefugee,
-} from './world/Entities.js';
+} from './world/Entities.js?v=20260409-heli19';
 import { HelicopterSystem } from './systems/HelicopterSystem.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { CycloneSystem } from './systems/CycloneSystem.js';
@@ -28,6 +28,7 @@ import { getHUDRefs } from './ui/HUD.js';
 import { Minimap } from './ui/Minimap.js';
 
 const canvas = document.getElementById('game-canvas');
+const topArea = document.getElementById('top-area');
 const renderer = new Renderer(canvas);
 const input = new Input(window);
 const audio = new AudioSystem();
@@ -44,6 +45,9 @@ const systems = {
 };
 let planeSystem;
 let state;
+let heliDebug;
+const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') || '';
+const IS_HELI_DEBUG = DEBUG_MODE === 'heli';
 
 const TWO_PI = Math.PI * 2;
 const RENDER_SEA_Y = 0.18 * 8;
@@ -183,6 +187,24 @@ function clearScene() {
   while (renderer.scene.children.length > 2) renderer.scene.remove(renderer.scene.children[2]);
 }
 
+function getStoredHighScore() {
+  return Number(localStorage.getItem('zxrescue_hs') || 0);
+}
+
+function saveHighScore(score) {
+  const highScore = Math.max(getStoredHighScore(), score || 0);
+  localStorage.setItem('zxrescue_hs', String(highScore));
+  return highScore;
+}
+
+function showStartScreen(seedText = document.getElementById('seed-input').value.trim() || 'ZXRESCUE') {
+  document.getElementById('seed-input').value = seedText || 'ZXRESCUE';
+  clearScene();
+  state = null;
+  screens.showMenu(true);
+  screens.showOverlay(`High Score: ${getStoredHighScore()}`);
+}
+
 function getPadSurfaceY(world, x, z) {
   if (!world?.helipads?.length) return sampleGroundHeight(world, x, z);
   let best = sampleGroundHeight(world, x, z);
@@ -209,6 +231,101 @@ function createHeliEntity() {
   heliObj.group.renderOrder = 12;
   renderer.scene.add(heliObj.group);
   return heliObj;
+}
+
+function setupHeliDebugPreview() {
+  document.body.classList.add('debug-heli');
+  screens.showMenu(false);
+  screens.showOverlay('');
+  clearScene();
+  renderer.scene.background = new THREE.Color('#d6f4fb');
+  renderer.scene.fog = new THREE.Fog('#d6f4fb', 11, 24);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(7.2, 40),
+    new THREE.MeshBasicMaterial({ color: '#effbff', transparent: true, opacity: 0.95 }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -1.08;
+  renderer.scene.add(floor);
+
+  const floorShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(2.3, 32),
+    new THREE.MeshBasicMaterial({ color: '#7db9c8', transparent: true, opacity: 0.18 }),
+  );
+  floorShadow.rotation.x = -Math.PI / 2;
+  floorShadow.position.y = -1.07;
+  renderer.scene.add(floorShadow);
+
+  const heliObj = createHeliEntity();
+  heliObj.group.position.set(0, 0.38, 0);
+  heliObj.group.rotation.set(0.05, -Math.PI * 0.68, -0.03, 'YXZ');
+
+  const overlay = document.getElementById('top-overlay');
+  overlay.classList.remove('hidden');
+  overlay.classList.add('debug-overlay');
+  overlay.innerHTML = `
+    <div class="debug-card">
+      <div class="debug-title">Helicopter Preview</div>
+      <div class="debug-copy">Drag to orbit. Mouse wheel to zoom. Open <code>?debug=heli</code> to inspect the model full screen.</div>
+    </div>
+  `;
+
+  heliDebug = {
+    active: true,
+    dragging: false,
+    floorShadow,
+    heli: heliObj,
+    pitch: 0.36,
+    radius: 8.9,
+    rotorAngle: 0.54,
+    target: new THREE.Vector3(0, 0.14, -0.48),
+    time: 0,
+    yaw: 2.34,
+  };
+
+  const releaseDrag = () => {
+    if (!heliDebug) return;
+    heliDebug.dragging = false;
+  };
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (!heliDebug?.active) return;
+    heliDebug.dragging = true;
+    canvas.setPointerCapture?.(event.pointerId);
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!heliDebug?.active || !heliDebug.dragging) return;
+    heliDebug.yaw -= event.movementX * 0.009;
+    heliDebug.pitch = Math.max(-0.35, Math.min(0.9, heliDebug.pitch - event.movementY * 0.006));
+  });
+  canvas.addEventListener('pointerup', releaseDrag);
+  canvas.addEventListener('pointercancel', releaseDrag);
+  canvas.addEventListener('wheel', (event) => {
+    if (!heliDebug?.active) return;
+    event.preventDefault();
+    heliDebug.radius = Math.max(4.8, Math.min(13.5, heliDebug.radius + event.deltaY * 0.003));
+  }, { passive: false });
+}
+
+function updateHeliDebugPreview(dt) {
+  if (!heliDebug?.active) return;
+  heliDebug.time += dt;
+
+  const bob = Math.sin(heliDebug.time * 1.1) * 0.045;
+  heliDebug.heli.group.position.y = 0.38 + bob;
+  heliDebug.heli.group.rotation.set(0.05, -Math.PI * 0.68, -0.03, 'YXZ');
+  heliDebug.heli.rotor.rotation.y = heliDebug.rotorAngle;
+  if (heliDebug.heli.tailRotor) heliDebug.heli.tailRotor.rotation.x = Math.PI * 0.25;
+  heliDebug.floorShadow.scale.set(1 + Math.abs(bob) * 1.8, 1, 1 + Math.abs(bob) * 1.8);
+
+  const radiusCos = Math.cos(heliDebug.pitch) * heliDebug.radius;
+  renderer.camera.position.set(
+    Math.sin(heliDebug.yaw) * radiusCos,
+    heliDebug.target.y + Math.sin(heliDebug.pitch) * heliDebug.radius,
+    Math.cos(heliDebug.yaw) * radiusCos,
+  );
+  renderer.camera.lookAt(heliDebug.target);
 }
 
 function resetRope(stateRef) {
@@ -535,7 +652,7 @@ function setupRound(seedText, round = 1, carry = {}) {
       Math.min(carry.livesMax ?? CONFIG.livesMax, carry.lives ?? carry.livesMax ?? CONFIG.livesMax),
     ),
   };
-  planeSystem = new PlaneSystem(seedText);
+  planeSystem = new PlaneSystem(seedText, renderer.scene);
 }
 
 function updateStartupEffects(dt) {
@@ -543,7 +660,7 @@ function updateStartupEffects(dt) {
     state.startup.cratesTimer -= dt;
     if (state.startup.cratesTimer <= 0) {
       state.hudCratesVisible = Math.min(CONFIG.crateCount, state.hudCratesVisible + 1);
-      audio.play('drop');
+      audio.play('tick');
       state.startup.cratesTimer = CONFIG.startupCrateInterval;
     }
   }
@@ -628,6 +745,25 @@ function updateRefugees(stateRef, dt) {
 
 function update(dt) {
   if (!state || state.paused) return;
+
+  if (state.gameOver) {
+    if (!state.inTransition) {
+      state.inTransition = true;
+      const highScore = saveHighScore(state.score);
+      screens.showOverlay(`GAME OVER\nClick or press Space to return to start screen\nHigh Score: ${highScore}`);
+    }
+
+    if (input.down('Space') && !state._restartLock) {
+      state._restartLock = true;
+      showStartScreen(state.seedText);
+      return;
+    }
+    if (!input.down('Space')) state._restartLock = false;
+
+    ui.update(state);
+    return;
+  }
+
   if (input.down('KeyV') && !state._vLock) {
     state._vLock = true;
     state.viewNorth = !state.viewNorth;
@@ -721,14 +857,6 @@ function update(dt) {
   // }
   state.world.crates.forEach((c) => { c.mesh.visible = !c.collected; });
 
-  if (state.gameOver && !state.inTransition) {
-    state.inTransition = true;
-    screens.showOverlay('GAME OVER');
-    const hs = Math.max(Number(localStorage.getItem('zxrescue_hs') || 0), state.score);
-    localStorage.setItem('zxrescue_hs', String(hs));
-    return;
-  }
-
   if (state.winRound && !state.inTransition) {
     state.inTransition = true;
     screens.showOverlay(`ROUND ${state.round} COMPLETE`);
@@ -750,26 +878,34 @@ function update(dt) {
   ui.update(state);
 }
 
-const loop = new GameLoop(new Time(CONFIG.fixedDt), update, () => renderer.render());
+const loop = new GameLoop(new Time(CONFIG.fixedDt), IS_HELI_DEBUG ? updateHeliDebugPreview : update, () => renderer.render());
 
 new ResizeObserver((entries) => {
   const { width, height } = entries[0].contentRect;
   renderer.resize(width, height);
 }).observe(document.getElementById('top-area'));
 
-document.getElementById('start-btn').addEventListener('click', () => {
-  audio.enable();
-  const seed = document.getElementById('seed-input').value.trim() || 'ZXRESCUE';
-  setupRound(seed, 1);
-  screens.showMenu(false);
-  screens.showOverlay('');
-});
+if (IS_HELI_DEBUG) {
+  setupHeliDebugPreview();
+} else {
+  document.getElementById('start-btn').addEventListener('click', () => {
+    audio.enable();
+    const seed = document.getElementById('seed-input').value.trim() || 'ZXRESCUE';
+    setupRound(seed, 1);
+    screens.showMenu(false);
+    screens.showOverlay('');
+  });
 
-document.getElementById('random-btn').addEventListener('click', () => {
-  document.getElementById('seed-input').value = `SEED-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-});
+  document.getElementById('random-btn').addEventListener('click', () => {
+    document.getElementById('seed-input').value = `SEED-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  });
 
-screens.showMenu(true);
-screens.showOverlay(`High Score: ${localStorage.getItem('zxrescue_hs') || 0}`);
+  topArea.addEventListener('pointerdown', () => {
+    if (!state?.gameOver) return;
+    showStartScreen(state.seedText);
+  });
+
+  showStartScreen();
+}
 loop.start();
 console.log(`${GAME_NAME} ready`);

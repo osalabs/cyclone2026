@@ -441,7 +441,7 @@ export function generateWorld(seedText, round = 1) {
       const rotY = rng.pick([0, Math.PI]);
       const doorRange = Math.max(0, width * 0.3);
       const doorOffset = rng.range(-doorRange, doorRange);
-      const windowCols = Math.max(2, widthBlocks + rng.int(0, 1));
+      const windowCols = Math.max(3, widthBlocks + rng.int(0, 1));
       const groundY = sampleWorldY(p.x, p.z);
       return {
         id,

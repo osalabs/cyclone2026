@@ -2,6 +2,27 @@ import { CONFIG } from '../config.js';
 import { circleHit } from '../world/Collision.js';
 
 export class PickupSystem {
+  getAcquireRadius(type) {
+    if (type === 'refugee') {
+      return CONFIG.rope.refugeeAcquireRadius || CONFIG.rope.acquireRadius;
+    }
+    return CONFIG.rope.dropZoneRadius || CONFIG.rope.acquireRadius;
+  }
+
+  getDropZoneRadius(type) {
+    if (type === 'refugee') {
+      return CONFIG.rope.refugeeDropZoneRadius || this.getAcquireRadius(type);
+    }
+    return CONFIG.rope.dropZoneRadius || CONFIG.rope.acquireRadius;
+  }
+
+  getAttachRadius(type) {
+    if (type === 'refugee') {
+      return CONFIG.rope.refugeeAttachRadius || CONFIG.rope.attachRadius;
+    }
+    return CONFIG.rope.attachRadius;
+  }
+
   getHookOffsetY(type) {
     return type === 'crate' ? 1.08 : 1.0;
   }
@@ -33,13 +54,13 @@ export class PickupSystem {
   }
 
   findTarget(state, anchor) {
-    const maxR = CONFIG.rope.dropZoneRadius || CONFIG.rope.acquireRadius;
-    const maxR2 = maxR * maxR;
     let best = null;
     let bestScore = Infinity;
 
     const test = (type, obj) => {
       if (!this.isAvailable(type, obj)) return;
+      const maxR = this.getAcquireRadius(type);
+      const maxR2 = maxR * maxR;
       const dx = obj.x - anchor.x;
       const dz = obj.z - anchor.z;
       const d2 = dx * dx + dz * dz;
@@ -113,13 +134,14 @@ export class PickupSystem {
     }
 
     if (rope.phase === 'dropping') {
+      rope.target = this.findTarget(state, rope.anchor);
       const t = rope.target;
-      if (!t || !this.isAvailable(t.type, t.obj)) {
+      if (!t) {
         this.beginRetract(rope);
       } else {
         const dx = t.obj.x - rope.anchor.x;
         const dz = t.obj.z - rope.anchor.z;
-        const maxDropR = CONFIG.rope.dropZoneRadius || CONFIG.rope.acquireRadius;
+        const maxDropR = this.getDropZoneRadius(t.type);
         if (dx * dx + dz * dz > (maxDropR * 1.45) ** 2) {
           this.beginRetract(rope);
         } else {
@@ -129,10 +151,11 @@ export class PickupSystem {
           rope.tip.z = rope.anchor.z;
 
           const hook = this.getHookPos(t.type, t.obj);
+          const attachRadius = this.getAttachRadius(t.type);
           const horizontal = Math.hypot(hook.x - rope.tip.x, hook.z - rope.tip.z);
           const vertical = Math.abs(hook.y - rope.tip.y);
-          const touchedY = rope.tip.y <= hook.y + CONFIG.rope.attachRadius * 0.7;
-          if (horizontal <= CONFIG.rope.attachRadius * 1.25 && vertical <= CONFIG.rope.attachRadius * 1.4 && touchedY) {
+          const touchedY = rope.tip.y <= hook.y + attachRadius * 0.7;
+          if (horizontal <= attachRadius * 1.25 && vertical <= attachRadius * 1.4 && touchedY) {
             rope.phase = 'attached';
           } else if (rope.length >= CONFIG.rope.maxLength - 0.02) {
             // Keep rope deployed at max length while target stays in pickup zone.

@@ -118,7 +118,7 @@ export class UISystem {
     for (const p of state.planes) {
       nearestPlaneDist = Math.min(nearestPlaneDist, Math.hypot(p.x - state.heli.pos.x, p.z - state.heli.pos.z));
     }
-    const planeDanger = nearestPlaneDist < 30;
+    const planeDanger = nearestPlaneDist < (CONFIG.plane?.warningDistance || 30);
     if (this.hud.aircraftAlert) {
       this.hud.aircraftAlert.textContent = planeDanger ? 'AIRCRAFT' : '';
       this.hud.aircraftAlert.classList.toggle('aircraft-alert', planeDanger);

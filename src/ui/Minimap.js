@@ -45,19 +45,21 @@ export class Minimap {
 
   drawCycloneIcon(mx, mz) {
     const { ctx } = this;
-    const r = 8;
+    const arms = 6;
     ctx.save();
     ctx.translate(mx, mz);
-    ctx.fillStyle = '#cf2a2a';
+    ctx.fillStyle = '#404753';
 
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
+    for (let i = 0; i < arms; i++) {
+      const a = (i / arms) * Math.PI * 2;
       ctx.save();
       ctx.rotate(a);
       ctx.beginPath();
-      ctx.moveTo(1.5, -1.2);
-      ctx.quadraticCurveTo(7.2, -3.4, 10, 0);
-      ctx.quadraticCurveTo(6.9, 2.7, 1.2, 1.2);
+      ctx.moveTo(0.6, -1.6);
+      ctx.bezierCurveTo(3.2, -8.6, 10.8, -11.2, 15.4, -7.8);
+      ctx.bezierCurveTo(16.9, -6.6, 16.6, -4.5, 14.7, -4.1);
+      ctx.bezierCurveTo(9.5, -3.3, 4.2, -0.1, 1.1, 3.4);
+      ctx.bezierCurveTo(-0.2, 1.9, -0.4, 0.3, 0.6, -1.6);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -65,15 +67,9 @@ export class Minimap {
 
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
-    ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+    ctx.arc(0, 0, 4.4, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.stroke();
     ctx.restore();
   }
 

@@ -2,21 +2,21 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
 export function createHelicopter() {
   const g = new THREE.Group();
-  const flat = { flatShading: true };
-  const redMat = new THREE.MeshStandardMaterial({ color: '#df4b43', roughness: 0.8, metalness: 0.08, ...flat });
-  const redDarkMat = new THREE.MeshStandardMaterial({ color: '#ba3935', roughness: 0.84, metalness: 0.1, ...flat });
-  const whiteMat = new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.68, metalness: 0.04, ...flat });
-  const darkMat = new THREE.MeshStandardMaterial({ color: '#15171b', roughness: 0.9, metalness: 0.12, ...flat });
-  const trimMat = new THREE.MeshStandardMaterial({ color: '#343b47', roughness: 0.72, metalness: 0.18, ...flat });
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: '#dfeaf5',
+  const flat = { flatShading: true, side: THREE.DoubleSide };
+  const redMat = new THREE.MeshStandardMaterial({ color: '#eb5347', roughness: 0.8, metalness: 0.08, ...flat });
+  const redDarkMat = new THREE.MeshStandardMaterial({ color: '#d4473d', roughness: 0.84, metalness: 0.1, ...flat });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: '#f5f4ef', roughness: 0.68, metalness: 0.04, ...flat });
+  const darkMat = new THREE.MeshStandardMaterial({ color: '#14161a', roughness: 0.92, metalness: 0.12, ...flat });
+  const trimMat = new THREE.MeshStandardMaterial({ color: '#444c58', roughness: 0.72, metalness: 0.18, ...flat });
+  const frontGlassMat = new THREE.MeshStandardMaterial({
+    color: '#5b6572',
     transparent: true,
-    opacity: 0.82,
-    roughness: 0.24,
+    opacity: 0.92,
+    roughness: 0.22,
     metalness: 0.08,
     ...flat,
   });
-  const sideGlassMat = new THREE.MeshStandardMaterial({ color: '#48505e', roughness: 0.38, metalness: 0.18, ...flat });
+  const sideGlassMat = new THREE.MeshStandardMaterial({ color: '#49515d', roughness: 0.4, metalness: 0.16, ...flat });
 
   const addMesh = (mesh, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => {
     mesh.position.set(x, y, z);
@@ -26,106 +26,173 @@ export function createHelicopter() {
     return mesh;
   };
 
-  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.96, 2.34, 7), redMat), 0, -0.02, 0.5, Math.PI / 2, 0, 0, 1, 0.84, 1);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.44, 1.7), redMat), 0, 0.28, 0.6);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.18, 1.38), whiteMat), 0, 0.64, 0.58);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.18, 0.86), whiteMat), 0, 0.54, -0.04);
-  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.76, 1.14, 6), redMat), 0, 0.02, 1.82, Math.PI / 2, 0, 0, 1, 0.84, 1);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.36, 1.56), redDarkMat), 0, -0.31, 0.38);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.22, 0.78), trimMat), 0, -0.4, 1.52);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 1.08), trimMat), 0, 0.16, 1.57, -0.28, 0, 0);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.28, 0.76), redDarkMat), 0, 0.08, -0.84);
+  const createLoftGeometry = (slices, radialSegments = 10) => {
+    const positions = [];
+    const indices = [];
+    const ringSize = radialSegments;
+    for (const slice of slices) {
+      const cx = slice.x || 0;
+      const cy = slice.y || 0;
+      for (let i = 0; i < radialSegments; i++) {
+        const a = (i / radialSegments) * Math.PI * 2;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        const rx = Math.sign(ca) * Math.pow(Math.abs(ca), 1.16) * (slice.w * 0.5);
+        const ry = Math.sign(sa) * Math.pow(Math.abs(sa), 1.05) * (slice.h * 0.5);
+        positions.push(cx + rx, cy + ry, slice.z);
+      }
+    }
 
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.46, 0.14), glassMat), 0, 0.29, 2.03, -0.32, 0, 0);
-  const windshieldLeft = addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.36, 0.14), glassMat), -0.31, 0.26, 1.86, -0.16, 0.62, 0);
-  const windshieldRight = windshieldLeft.clone();
-  windshieldRight.position.x = 0.31;
-  windshieldRight.rotation.y = -0.62;
-  g.add(windshieldRight);
+    for (let s = 0; s < slices.length - 1; s++) {
+      const curr = s * ringSize;
+      const next = (s + 1) * ringSize;
+      for (let i = 0; i < radialSegments; i++) {
+        const a = curr + i;
+        const b = curr + ((i + 1) % radialSegments);
+        const c = next + i;
+        const d = next + ((i + 1) % radialSegments);
+        indices.push(a, c, b, b, c, d);
+      }
+    }
 
-  const sideWindowGeo = new THREE.BoxGeometry(0.08, 0.38, 0.58);
-  const sideWindowFrontL = addMesh(new THREE.Mesh(sideWindowGeo, sideGlassMat), -0.72, 0.22, 1.16);
-  const sideWindowFrontR = sideWindowFrontL.clone();
-  sideWindowFrontR.position.x = 0.72;
-  g.add(sideWindowFrontR);
+    const firstCenterIndex = positions.length / 3;
+    positions.push(slices[0].x || 0, slices[0].y || 0, slices[0].z);
+    for (let i = 0; i < radialSegments; i++) {
+      const a = i;
+      const b = (i + 1) % radialSegments;
+      indices.push(firstCenterIndex, b, a);
+    }
 
-  const cabinWindowGeo = new THREE.BoxGeometry(0.08, 0.31, 0.28);
-  for (const z of [0.72, 0.26, -0.18]) {
-    const leftWindow = addMesh(new THREE.Mesh(cabinWindowGeo, sideGlassMat), -0.78, 0.14, z);
-    const rightWindow = leftWindow.clone();
-    rightWindow.position.x = 0.78;
-    g.add(rightWindow);
-  }
+    const last = slices.length - 1;
+    const lastStart = last * ringSize;
+    const lastCenterIndex = positions.length / 3;
+    positions.push(slices[last].x || 0, slices[last].y || 0, slices[last].z);
+    for (let i = 0; i < radialSegments; i++) {
+      const a = lastStart + i;
+      const b = lastStart + ((i + 1) % radialSegments);
+      indices.push(lastCenterIndex, a, b);
+    }
 
-  const doorGeo = new THREE.BoxGeometry(0.1, 0.44, 0.5);
-  const doorLeft = addMesh(new THREE.Mesh(doorGeo, trimMat), -0.77, -0.11, 0.48);
-  const doorRight = doorLeft.clone();
-  doorRight.position.x = 0.77;
-  g.add(doorRight);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  };
 
-  addMesh(
-    new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 2.8, 6), redMat),
-    0,
-    0.16,
-    -2.1,
-    Math.PI / 2,
-    0,
-    0,
-    1,
-    0.82,
-    1,
-  );
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.58), whiteMat), 0, 0.16, -1.22);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.92, 0.96), redMat), 0, 0.67, -3.3);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.32, 0.46), redDarkMat), 0, 1.11, -3.19, -0.18, 0, 0);
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.06, 0.24), whiteMat), 0, 0.1, -3.02);
-  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.14, 0.44, 6), redDarkMat), 0, 0.16, -3.57, Math.PI / 2, 0, 0, 1, 0.82, 1);
+  const addLink = (start, end, radius, material, radialSegments = 6) => {
+    const a = new THREE.Vector3(...start);
+    const b = new THREE.Vector3(...end);
+    const delta = new THREE.Vector3().subVectors(b, a);
+    const len = delta.length();
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, radialSegments), material);
+    mesh.position.copy(a).add(b).multiplyScalar(0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
+    g.add(mesh);
+    return mesh;
+  };
 
-  const skidGeo = new THREE.CylinderGeometry(0.055, 0.055, 3.18, 8);
-  const skidFrontGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.46, 8);
-  const skidBackGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.4, 8);
-  for (const x of [-0.66, 0.66]) {
-    addMesh(new THREE.Mesh(skidGeo, darkMat), x, -0.83, 0.24, Math.PI / 2, 0, 0);
-    addMesh(new THREE.Mesh(skidFrontGeo, darkMat), x, -0.73, 1.79, Math.PI / 2 - 0.58, 0, 0);
-    addMesh(new THREE.Mesh(skidBackGeo, darkMat), x, -0.82, -1.38, Math.PI / 2 + 0.35, 0, 0);
-  }
+  const addSidePanel = (x, y, z, width, height, thickness = 0.016, material = sideGlassMat) =>
+    addMesh(new THREE.Mesh(new THREE.BoxGeometry(thickness, height, width), material), x, y, z);
 
-  const strutGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.78, 8);
-  for (const z of [0.98, -0.18]) {
-    const leftStrut = addMesh(new THREE.Mesh(strutGeo, darkMat), -0.42, -0.46, z, 0, 0, 0.38);
-    const rightStrut = leftStrut.clone();
-    rightStrut.position.x = 0.42;
-    rightStrut.rotation.z = -0.38;
-    g.add(rightStrut);
-  }
+  const fuselage = new THREE.Mesh(createLoftGeometry([
+    { z: -1.04, w: 0.46, h: 0.36, y: 0.14 },
+    { z: -0.74, w: 0.84, h: 0.74, y: 0.1 },
+    { z: -0.12, w: 1.18, h: 1.04, y: 0.06 },
+    { z: 0.52, w: 1.36, h: 1.18, y: 0.05 },
+    { z: 1.04, w: 1.42, h: 1.24, y: 0.06 },
+    { z: 1.42, w: 1.24, h: 1.16, y: 0.04 },
+    { z: 1.76, w: 0.96, h: 0.98, y: 0.02 },
+    { z: 2.02, w: 0.6, h: 0.7, y: -0.01 },
+    { z: 2.18, w: 0.22, h: 0.24, y: -0.02 },
+  ], 12), redMat);
+  g.add(fuselage);
 
-  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.34, 8), darkMat), 0, 0.87, 0.34);
-  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.1, 8), darkMat), 0, 1.04, 0.34);
-  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.08, 8), redDarkMat), 0, 1.11, 0.34);
+  const underside = new THREE.Mesh(createLoftGeometry([
+    { z: 0.08, w: 0.54, h: 0.1, y: -0.48 },
+    { z: 0.6, w: 0.8, h: 0.18, y: -0.54 },
+    { z: 1.1, w: 0.74, h: 0.18, y: -0.5 },
+    { z: 1.5, w: 0.34, h: 0.08, y: -0.36 },
+  ], 8), whiteMat);
+  g.add(underside);
+
+  const canopy = new THREE.Mesh(createLoftGeometry([
+    { z: 0.0, w: 0.46, h: 0.1, y: 0.5 },
+    { z: 0.34, w: 0.84, h: 0.24, y: 0.6 },
+    { z: 0.74, w: 0.94, h: 0.34, y: 0.68 },
+    { z: 1.08, w: 0.9, h: 0.34, y: 0.66 },
+    { z: 1.34, w: 0.58, h: 0.12, y: 0.52 },
+  ], 10), whiteMat);
+  g.add(canopy);
+
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.56, 0.03), frontGlassMat), 0, 0.28, 1.98, -0.18, 0, 0);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.44, 0.24), frontGlassMat), -0.58, 0.23, 1.66, -0.08, -0.12, 0);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.44, 0.24), frontGlassMat), 0.58, 0.23, 1.66, -0.08, 0.12, 0);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.4, 0.05), redDarkMat), 0, 0.23, 1.9, -0.14, 0, 0);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.05), redDarkMat), -0.3, 0.22, 1.78, -0.08, -0.24, -0.34);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.05), redDarkMat), 0.3, 0.22, 1.78, -0.08, 0.24, 0.34);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.04, 0.18), redDarkMat), 0, 0.54, 1.22, -0.03, 0, 0);
+
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.36, 0.34), sideGlassMat), -0.63, 0.15, 0.92, 0, 0, -0.12);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.36, 0.34), sideGlassMat), 0.63, 0.15, 0.92, 0, 0, 0.12);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.26, 0.18), sideGlassMat), -0.63, 0.15, 0.48);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.26, 0.18), sideGlassMat), 0.63, 0.15, 0.48);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.26, 0.18), sideGlassMat), -0.61, 0.15, 0.12);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.26, 0.18), sideGlassMat), 0.61, 0.15, 0.12);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.26, 0.18), sideGlassMat), -0.57, 0.15, -0.22);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.26, 0.18), sideGlassMat), 0.57, 0.15, -0.22);
+
+  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.24, 8), whiteMat), -0.24, 0.56, -0.12, Math.PI / 2, 0, 0);
+  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.24, 8), whiteMat), 0.24, 0.56, -0.12, Math.PI / 2, 0, 0);
+  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 8), trimMat), -0.24, 0.56, -0.25, Math.PI / 2, 0, 0);
+  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 8), trimMat), 0.24, 0.56, -0.25, Math.PI / 2, 0, 0);
+
+  const tailRoot = new THREE.Mesh(createLoftGeometry([
+    { z: -1.18, w: 0.38, h: 0.26, y: 0.16 },
+    { z: -0.94, w: 0.54, h: 0.36, y: 0.14 },
+  ], 8), redDarkMat);
+  g.add(tailRoot);
+  const tailBoom = new THREE.Mesh(createLoftGeometry([
+    { z: -3.5, w: 0.08, h: 0.08, y: 0.26 },
+    { z: -3.02, w: 0.11, h: 0.1, y: 0.24 },
+    { z: -2.42, w: 0.16, h: 0.13, y: 0.22 },
+    { z: -1.82, w: 0.24, h: 0.18, y: 0.19 },
+    { z: -1.18, w: 0.38, h: 0.26, y: 0.16 },
+  ], 8), redMat);
+  g.add(tailBoom);
+  const tailBand = new THREE.Mesh(createLoftGeometry([
+    { z: -2.0, w: 0.18, h: 0.14, y: 0.2 },
+    { z: -1.68, w: 0.28, h: 0.22, y: 0.18 },
+    { z: -1.3, w: 0.42, h: 0.28, y: 0.16 },
+  ], 8), whiteMat);
+  g.add(tailBand);
+
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.04, 0.12), redMat), 0, 0.3, -3.06, 0, 0.02, 0);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.13), whiteMat), -0.31, 0.3, -3.06, 0, 0.02, 0);
+  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.13), whiteMat), 0.31, 0.3, -3.06, 0, 0.02, 0);
 
   const rotor = new THREE.Group();
-  rotor.position.set(0, 1.1, 0.34);
+  rotor.position.set(0, 1.06, 0.38);
   g.add(rotor);
   const rotorBlades = [];
-  const bladeGeo = new THREE.BoxGeometry(4.1, 0.05, 0.17);
-  const bladeTipGeo = new THREE.BoxGeometry(0.42, 0.05, 0.19);
+  const bladeGeo = new THREE.BoxGeometry(4.18, 0.04, 0.12);
   for (let i = 0; i < 4; i++) {
     const arm = new THREE.Group();
     arm.rotation.y = i * Math.PI * 0.5;
     const blade = new THREE.Mesh(bladeGeo, darkMat);
-    blade.position.x = 2.05;
-    const tip = new THREE.Mesh(bladeTipGeo, redDarkMat);
-    tip.position.x = 4.16;
-    arm.add(blade, tip);
+    blade.position.x = 2.09;
+    arm.add(blade);
     rotor.add(arm);
-    rotorBlades.push(blade, tip);
+    rotorBlades.push(blade);
   }
 
-  addMesh(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.24), trimMat), 0, 0.68, -3.33);
-  addMesh(new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.06, 5, 10), whiteMat), 0, 0.68, -3.33, 0, Math.PI / 2, 0);
+  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.28, 8), darkMat), 0, 0.9, 0.38);
+  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.08, 8), darkMat), 0, 1.03, 0.38);
+  addMesh(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.07, 8), redDarkMat), 0, 1.1, 0.38);
+
   const tailRotor = new THREE.Group();
-  tailRotor.position.set(0, 0.68, -3.33);
-  const tBlade1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.08), darkMat);
+  tailRotor.position.set(0, 0.54, -3.62);
+  const tBlade1 = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.34, 0.05), darkMat);
   const tBlade2 = tBlade1.clone();
   tBlade2.rotation.x = Math.PI / 2;
   const tBlade3 = tBlade1.clone();
@@ -134,6 +201,20 @@ export function createHelicopter() {
   tBlade4.rotation.z = -Math.PI / 4;
   tailRotor.add(tBlade1, tBlade2, tBlade3, tBlade4);
   g.add(tailRotor);
+
+  for (const x of [-0.64, 0.64]) {
+    addLink([x, -0.84, -0.68], [x, -0.84, 1.16], 0.044, darkMat, 8);
+    addLink([x, -0.84, 1.16], [x * 0.9, -0.78, 1.54], 0.044, darkMat, 8);
+    addLink([x * 0.9, -0.78, 1.54], [x * 0.82, -0.76, 1.7], 0.044, darkMat, 8);
+    addLink([x, -0.84, -0.68], [x * 0.94, -0.81, -0.9], 0.044, darkMat, 8);
+    addLink([x * 0.94, -0.81, -0.9], [x * 0.86, -0.8, -1.0], 0.044, darkMat, 8);
+
+    addLink([x * 0.48, -0.24, 0.88], [x, -0.8, 0.88], 0.038, darkMat, 8);
+    addLink([x * 0.4, -0.26, -0.02], [x, -0.81, -0.02], 0.038, darkMat, 8);
+  }
+
+  addLink([-0.28, -0.5, 0.88], [0.28, -0.5, 0.88], 0.034, darkMat, 8);
+  addLink([-0.24, -0.52, -0.02], [0.24, -0.52, -0.02], 0.034, darkMat, 8);
 
   return {
     group: g,
