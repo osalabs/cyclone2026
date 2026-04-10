@@ -28,6 +28,8 @@ export class PlaneSystem {
   update(state, dt) {
     const edge = state.world.size * 0.58;
     const zRange = state.world.size * 0.45;
+    let nearestDist = Infinity;
+    let nearestPlane = null;
     state.planeTimer -= dt;
     if (state.planeTimer <= 0) {
       state.planeTimer = this.rng.range(12, 25) / (1 + state.round * 0.1);
@@ -55,7 +57,17 @@ export class PlaneSystem {
 
       const keep = p.x < edge;
       if (!keep && p.mesh) this.scene?.remove(p.mesh);
+      if (keep) {
+        const dx = p.x - state.heli.pos.x;
+        const dz = p.z - state.heli.pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestPlane = { dist, relX: dx, relZ: dz, speed: p.vx };
+        }
+      }
       return keep;
     });
+    state.nearestPlane = nearestPlane || { dist: Infinity, relX: 0, relZ: 0, speed: 0 };
   }
 }

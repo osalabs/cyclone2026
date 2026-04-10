@@ -3,7 +3,7 @@ import { CONFIG, GAME_NAME } from './config.js';
 import { Renderer } from './engine/Renderer.js';
 import { Input } from './engine/Input.js';
 import { Time } from './engine/Time.js';
-import { AudioSystem } from './engine/Audio.js';
+import { AudioSystem } from './engine/Audio.js?v=20260409-audio3';
 import { generateWorld } from './world/WorldGen.js';
 import { buildTerrain, sampleGroundHeight } from './world/TerrainMesh.js';
 import {
@@ -199,7 +199,7 @@ function saveHighScore(score) {
 
 function showStartScreen(seedText = document.getElementById('seed-input').value.trim() || 'ZXRESCUE') {
   document.getElementById('seed-input').value = seedText || 'ZXRESCUE';
-  audio.stopHelicopter();
+  audio.stopWorldAudio();
   clearScene();
   state = null;
   screens.showMenu(true);
@@ -398,6 +398,7 @@ function beginCrash(stateRef, reason) {
   }
 
   const backCrash = /Out of fuel/i.test(reason) || Math.random() < 0.35;
+  audio.play('crashImpact');
   stateRef.crashAnim = {
     active: true,
     cause: reason,
@@ -503,6 +504,7 @@ function respawnHeli(stateRef) {
   stateRef.refueling = true;
   stateRef.fuel = CONFIG.fuelMax;
   stateRef.crashAnim = null;
+  stateRef.audioEvents = [];
   resetRope(stateRef);
 }
 
@@ -625,6 +627,7 @@ function setupRound(seedText, round = 1, carry = {}) {
       cratesTimer: CONFIG.startupCrateInterval,
       fuelTickTimer: CONFIG.startupFuelTickInterval,
     },
+    audioEvents: [],
     pickupTimer: 0,
     rope: {
       line: ropeLine,
@@ -637,6 +640,8 @@ function setupRound(seedText, round = 1, carry = {}) {
     },
     refueling: false,
     windForce: 0,
+    nearestPlane: { dist: Infinity, relX: 0, relZ: 0, speed: 0 },
+    cycloneAudio: { impact: 0, near: 0, core: 0 },
     viewNorth: carry.viewNorth ?? true,
     cameraTiltDeg: carry.cameraTiltDeg ?? CONFIG.camera.tiltDeg,
     cameraDist: CONFIG.camera.dist,
@@ -656,7 +661,30 @@ function setupRound(seedText, round = 1, carry = {}) {
   planeSystem = new PlaneSystem(seedText, renderer.scene);
 }
 
+function flushAudioEvents(stateRef) {
+  if (!stateRef?.audioEvents?.length) return;
+  for (const eventName of stateRef.audioEvents) audio.play(eventName);
+  stateRef.audioEvents.length = 0;
+}
+
+function updateDynamicAudio(stateRef, rotorSpin) {
+  const cycloneImpact = stateRef.cycloneAudio?.impact || 0;
+  const pickupType = stateRef.rope?.phase === 'attached' ? stateRef.rope.target?.type || null : null;
+  const pickupProgress = stateRef.rope ? stateRef.rope.length / CONFIG.rope.maxLength : 0;
+  const plane = stateRef.nearestPlane || { dist: Infinity, relX: 0, speed: 0 };
+  audio.setHelicopterRotor({
+    spin: rotorSpin,
+    active: !stateRef.heli.landed || !!stateRef.crashAnim?.active,
+    turbulence: cycloneImpact,
+    load: pickupType ? 0.32 : 0,
+  });
+  audio.setPickupWinch(pickupType, pickupProgress);
+  audio.setAircraftFlyby(plane.dist, plane.relX, plane.speed);
+  audio.setCycloneBuffet(cycloneImpact);
+}
+
 function updateStartupEffects(dt) {
+  const startupCratesPending = state.hudCratesVisible < CONFIG.crateCount;
   if (state.hudCratesVisible < CONFIG.crateCount) {
     state.startup.cratesTimer -= dt;
     if (state.startup.cratesTimer <= 0) {
@@ -666,7 +694,7 @@ function updateStartupEffects(dt) {
     }
   }
 
-  if (state.refueling && state.fuel < CONFIG.fuelMax) {
+  if (!startupCratesPending && state.refueling && state.fuel < CONFIG.fuelMax) {
     state.startup.fuelTickTimer -= dt;
     if (state.startup.fuelTickTimer <= 0) {
       audio.play('tick');
@@ -746,16 +774,16 @@ function updateRefugees(stateRef, dt) {
 
 function update(dt) {
   if (!state) {
-    audio.stopHelicopter();
+    audio.stopWorldAudio();
     return;
   }
   if (state.paused) {
-    audio.stopHelicopter();
+    audio.stopWorldAudio();
     return;
   }
 
   if (state.gameOver) {
-    audio.stopHelicopter();
+    audio.stopWorldAudio();
     if (!state.inTransition) {
       state.inTransition = true;
       const highScore = saveHighScore(state.score);
@@ -822,9 +850,21 @@ function update(dt) {
   const flightSpeedLevel = Math.max(1, Math.abs(state.heli.speedLevel));
   let rotorSpin = state.heli.landed ? 0.04 : (1.6 + flightSpeedLevel * 0.22);
   if (state.crashAnim?.active) rotorSpin = state.crashAnim.detachRotors ? 0.03 : 0.22;
+  if (!state.crashAnim?.active && !state.heli.landed) {
+    const cycloneImpact = state.cycloneAudio?.impact || 0;
+    if (cycloneImpact > 0.001) {
+      rotorSpin = Math.max(
+        0.18,
+        rotorSpin
+          + Math.sin(state.cyclone.t * (16 + cycloneImpact * 24)) * (0.05 + cycloneImpact * 0.22)
+          + Math.sin(state.cyclone.t * (39 + cycloneImpact * 31)) * cycloneImpact * 0.06,
+      );
+    }
+  }
   state.heli.rotor.rotation.y += rotorSpin;
   if (state.heli.tailRotor) state.heli.tailRotor.rotation.x += rotorSpin * 3.8;
-  audio.setHelicopterRotor(rotorSpin, !state.heli.landed || !!state.crashAnim?.active);
+  flushAudioEvents(state);
+  updateDynamicAudio(state, rotorSpin);
   updateHeliShadow(state.shadow, state.heli.landed, state.heli.rotor.rotation.y);
   const renderedGroundY = state.heli.onLand
     ? Math.max(RENDER_SEA_Y, Math.floor((state.heli.surfaceY ?? state.heli.groundY) / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y)

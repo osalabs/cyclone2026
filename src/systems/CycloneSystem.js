@@ -91,6 +91,7 @@ export class CycloneSystem {
 
     const d = Math.hypot(state.heli.pos.x - c.x, state.heli.pos.z - c.z);
     state.windForce = d < CONFIG.cyclone.far ? 1 - d / CONFIG.cyclone.far : 0;
+    state.cycloneAudio = { impact: 0, near: 0, core: 0 };
     if (!c.jitterT) c.jitterT = 0;
     c.jitterT += dt;
     if (!state.heli.landed && d < CONFIG.cyclone.mid) {
@@ -98,6 +99,11 @@ export class CycloneSystem {
       const nearForce = clamp01(1 - d / CONFIG.cyclone.near);
       const coreRadius = CONFIG.cyclone.near * 0.48;
       const coreForce = clamp01(1 - d / coreRadius);
+      state.cycloneAudio = {
+        impact: clamp01(midForce * 0.35 + nearForce * 0.7 + coreForce * 1.15),
+        near: nearForce,
+        core: coreForce,
+      };
       const invDHeli = 1 / Math.max(0.001, d);
       const awayX = (state.heli.pos.x - c.x) * invDHeli;
       const awayZ = (state.heli.pos.z - c.z) * invDHeli;

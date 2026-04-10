@@ -2,6 +2,11 @@ import { CONFIG } from '../config.js';
 import { circleHit } from '../world/Collision.js';
 
 export class PickupSystem {
+  emitAudio(state, name) {
+    if (!state.audioEvents) state.audioEvents = [];
+    state.audioEvents.push(name);
+  }
+
   getAcquireRadius(type) {
     if (type === 'refugee') {
       return CONFIG.rope.refugeeAcquireRadius || CONFIG.rope.acquireRadius;
@@ -156,6 +161,7 @@ export class PickupSystem {
           const vertical = Math.abs(hook.y - rope.tip.y);
           const touchedY = rope.tip.y <= hook.y + attachRadius * 0.7;
           if (horizontal <= attachRadius * 1.25 && vertical <= attachRadius * 1.4 && touchedY) {
+            this.emitAudio(state, t.type === 'crate' ? 'pickupCrateAttach' : 'pickupRefugeeAttach');
             rope.phase = 'attached';
           } else if (rope.length >= CONFIG.rope.maxLength - 0.02) {
             // Keep rope deployed at max length while target stays in pickup zone.
@@ -196,11 +202,13 @@ export class PickupSystem {
             state.cratesCollected++;
             state.score += 500;
             state.pickupTimer = 1.1;
+            this.emitAudio(state, 'pickupCrateComplete');
           } else {
             t.obj.saved = true;
             state.refugeesSaved++;
             state.score += 80;
             state.pickupTimer = 0.8;
+            this.emitAudio(state, 'pickupRefugeeComplete');
           }
           this.beginRetract(rope);
         }
