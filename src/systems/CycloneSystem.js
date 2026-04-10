@@ -2,6 +2,7 @@ import { CONFIG } from '../config.js';
 
 export class CycloneSystem {
   update(state, dt) {
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
     const c = state.cyclone;
     const p = state.world.cyclonePath;
 
@@ -92,20 +93,37 @@ export class CycloneSystem {
     state.windForce = d < CONFIG.cyclone.far ? 1 - d / CONFIG.cyclone.far : 0;
     if (!c.jitterT) c.jitterT = 0;
     c.jitterT += dt;
-    if (d < CONFIG.cyclone.mid && !state.heli.landed) {
-      state.heli.pos.x += (Math.random() - 0.5) * state.windForce * 1.8;
-      state.heli.pos.z += (Math.random() - 0.5) * state.windForce * 1.8;
-    }
-    if (d < CONFIG.cyclone.near && !state.heli.landed) {
-      const nearForce = Math.max(0, 1 - d / CONFIG.cyclone.near);
-      const yawJitter = Math.sin(c.jitterT * 24) * nearForce;
-      state.heli.heading += yawJitter * 0.095;
-      state.heli.pos.x += (Math.random() - 0.5) * (0.6 + nearForce * 2.1);
-      state.heli.pos.z += (Math.random() - 0.5) * (0.6 + nearForce * 2.1);
-      state.heli.alt = Math.max(CONFIG.minAlt, state.heli.alt - (6 + nearForce * 12) * dt);
-      if (nearForce > 0.55 && Math.random() < dt * 5.5) {
-        const impulse = Math.random() < 0.5 ? -1 : 1;
-        state.heli.speedLevel = Math.max(-CONFIG.speedLevels, Math.min(CONFIG.speedLevels, state.heli.speedLevel + impulse));
+    if (!state.heli.landed && d < CONFIG.cyclone.mid) {
+      const midForce = clamp01(1 - d / CONFIG.cyclone.mid);
+      const nearForce = clamp01(1 - d / CONFIG.cyclone.near);
+      const coreRadius = CONFIG.cyclone.near * 0.48;
+      const coreForce = clamp01(1 - d / coreRadius);
+      const invDHeli = 1 / Math.max(0.001, d);
+      const awayX = (state.heli.pos.x - c.x) * invDHeli;
+      const awayZ = (state.heli.pos.z - c.z) * invDHeli;
+      const swirlDir = Math.sin(c.t * 0.85 + c.pathAngle) >= 0 ? 1 : -1;
+      const tangentX = -awayZ * swirlDir;
+      const tangentZ = awayX * swirlDir;
+      const orbitSpeed = 5 + midForce * 11 + coreForce * 18;
+      const inwardSpeed = nearForce * 7 + coreForce * 24;
+      const jitterKick = (2 + midForce * 8 + coreForce * 16) * dt;
+
+      state.heli.pos.x += (tangentX * orbitSpeed - awayX * inwardSpeed) * dt + (Math.random() - 0.5) * jitterKick;
+      state.heli.pos.z += (tangentZ * orbitSpeed - awayZ * inwardSpeed) * dt + (Math.random() - 0.5) * jitterKick;
+      state.heli.heading += swirlDir * (midForce * 0.32 + nearForce * 0.65 + coreForce * 1.35) * dt;
+      state.heli.heading += Math.sin(c.jitterT * (18 + coreForce * 20)) * (0.015 + nearForce * 0.05 + coreForce * 0.12);
+      state.heli.alt = Math.max(
+        CONFIG.minAlt,
+        state.heli.alt - (3 + midForce * 8 + nearForce * 10 + coreForce * 26) * dt,
+      );
+
+      if (nearForce > 0.12 && Math.random() < dt * (3 + nearForce * 8 + coreForce * 18)) {
+        const step = coreForce > 0.5 ? 2 : 1;
+        const impulse = (Math.random() < 0.5 ? -1 : 1) * step;
+        state.heli.speedLevel = Math.max(
+          -CONFIG.speedLevels,
+          Math.min(CONFIG.speedLevels, state.heli.speedLevel + impulse),
+        );
       }
     }
   }

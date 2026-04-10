@@ -6,8 +6,8 @@
   <title>Cyclone2026: ZX Rescue</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles/main.css?v=20260409-gamefix1" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/main.css?v=20260409-ui1" />
 </head>
 <body>
   <div id="app">
@@ -71,10 +71,17 @@
   </div>
 
   <div id="menu" class="modal">
+    <div class="menu-kicker">Rescue Command // Cyclone Watch</div>
     <h1>Cyclone2026: ZX Rescue</h1>
-    <label>Seed: <input id="seed-input" value="ZXRESCUE" /></label>
+    <div class="menu-subtitle">Medical retrieval sorties across scattered islands in storm-threatened airspace.</div>
+    <div class="menu-tags">
+      <span class="menu-tag">5 Crates</span>
+      <span class="menu-tag">Optional Rescues</span>
+      <span class="menu-tag">Aircraft Hazard</span>
+    </div>
+    <label class="menu-seed">Seed: <input id="seed-input" value="ZXRESCUE" /></label>
     <div class="buttons">
-      <button id="start-btn">Start</button>
+      <button id="start-btn">Start Mission</button>
       <button id="random-btn">Random Seed</button>
     </div>
     <p id="menu-note">
@@ -83,6 +90,6 @@
     </p>
   </div>
 
-  <script type="module" src="src/main.js?v=20260409-heli19"></script>
+  <script type="module" src="src/main.js?v=20260409-heli20"></script>
 </body>
 </html>

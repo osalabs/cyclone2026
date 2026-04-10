@@ -13,7 +13,7 @@ import {
   createBuilding,
   createCrate,
   createRefugee,
-} from './world/Entities.js?v=20260409-heli19';
+} from './world/Entities.js?v=20260409-heli20';
 import { HelicopterSystem } from './systems/HelicopterSystem.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { CycloneSystem } from './systems/CycloneSystem.js';
@@ -199,6 +199,7 @@ function saveHighScore(score) {
 
 function showStartScreen(seedText = document.getElementById('seed-input').value.trim() || 'ZXRESCUE') {
   document.getElementById('seed-input').value = seedText || 'ZXRESCUE';
+  audio.stopHelicopter();
   clearScene();
   state = null;
   screens.showMenu(true);
@@ -744,9 +745,17 @@ function updateRefugees(stateRef, dt) {
 }
 
 function update(dt) {
-  if (!state || state.paused) return;
+  if (!state) {
+    audio.stopHelicopter();
+    return;
+  }
+  if (state.paused) {
+    audio.stopHelicopter();
+    return;
+  }
 
   if (state.gameOver) {
+    audio.stopHelicopter();
     if (!state.inTransition) {
       state.inTransition = true;
       const highScore = saveHighScore(state.score);
@@ -815,6 +824,7 @@ function update(dt) {
   if (state.crashAnim?.active) rotorSpin = state.crashAnim.detachRotors ? 0.03 : 0.22;
   state.heli.rotor.rotation.y += rotorSpin;
   if (state.heli.tailRotor) state.heli.tailRotor.rotation.x += rotorSpin * 3.8;
+  audio.setHelicopterRotor(rotorSpin, !state.heli.landed || !!state.crashAnim?.active);
   updateHeliShadow(state.shadow, state.heli.landed, state.heli.rotor.rotation.y);
   const renderedGroundY = state.heli.onLand
     ? Math.max(RENDER_SEA_Y, Math.floor((state.heli.surfaceY ?? state.heli.groundY) / RENDER_LAND_STEP_Y) * RENDER_LAND_STEP_Y)

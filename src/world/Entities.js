@@ -355,35 +355,63 @@ export function createBuilding(def = {}) {
   g.add(roof, ridge);
 
   const sideZ = depth * 0.5 + 0.04;
+  const sideX = width * 0.5 + 0.04;
   const windowY = [bodyHeight * 0.36, bodyHeight * 0.72];
-  const span = Math.max(0.6, width * 0.78);
-  let xSlots = [];
-  for (let i = 0; i < windowCols; i++) {
-    const t = windowCols === 1 ? 0.5 : i / (windowCols - 1);
-    xSlots.push(-span * 0.5 + t * span);
-  }
-  if (windowCols === 2) xSlots = [-span * 0.32, span * 0.32];
+  const frontSpan = Math.max(0.6, width * 0.78);
+  const sideSpan = Math.max(0.38, depth * 0.54);
+  const buildSlots = (count, span) => {
+    if (count <= 1) return [0];
+    const slots = [];
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0.5 : i / (count - 1);
+      slots.push(-span * 0.5 + t * span);
+    }
+    return slots;
+  };
+
+  let frontSlots = buildSlots(windowCols, frontSpan);
+  if (windowCols === 2) frontSlots = [-frontSpan * 0.32, frontSpan * 0.32];
+  const backSlots = [...frontSlots];
+  const sideCols = depth >= 2.8 ? 2 : 1;
+  const sideSlots = sideCols === 1 ? [0] : buildSlots(2, sideSpan);
+
+  const addFrontWindow = (x, y, zDir = 1) => {
+    const winW = Math.max(0.36, Math.min(0.62, width / (windowCols + 2)));
+    const w = new THREE.Mesh(new THREE.BoxGeometry(winW, 0.36, 0.1), windowMat);
+    w.position.set(x, y, zDir * sideZ);
+    g.add(w);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(winW + 0.08, 0.44, 0.03), trimMat);
+    trim.position.set(x, y, zDir * (sideZ + 0.025));
+    g.add(trim);
+  };
+
+  const addSideWindow = (xDir, y, z) => {
+    const winW = Math.max(0.28, Math.min(0.46, depth / 4.8));
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.36, winW), windowMat);
+    w.position.set(xDir * sideX, y, z);
+    g.add(w);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.44, winW + 0.08), trimMat);
+    trim.position.set(xDir * (sideX + 0.025), y, z);
+    g.add(trim);
+  };
 
   const doorWidth = 0.56;
   const doorHeight = 1.02;
   if (hasDoor) {
-    const maxDoorX = Math.max(0, span * 0.5 - doorWidth * 0.7);
+    const maxDoorX = Math.max(0, frontSpan * 0.5 - doorWidth * 0.7);
     const dx = Math.max(-maxDoorX, Math.min(maxDoorX, doorOffset));
     const door = new THREE.Mesh(new THREE.BoxGeometry(doorWidth, doorHeight, 0.1), doorMat);
     door.position.set(dx, doorHeight * 0.5, sideZ + 0.01);
     g.add(door);
-    xSlots = xSlots.filter((x) => Math.abs(x - dx) > doorWidth * 0.95);
+    frontSlots = frontSlots.filter((x) => Math.abs(x - dx) > doorWidth * 0.95);
   }
 
-  const winW = Math.max(0.36, Math.min(0.62, width / (windowCols + 2)));
   for (const y of windowY) {
-    for (const x of xSlots) {
-      const w = new THREE.Mesh(new THREE.BoxGeometry(winW, 0.36, 0.1), windowMat);
-      w.position.set(x, y, sideZ + 0.01);
-      g.add(w);
-      const trim = new THREE.Mesh(new THREE.BoxGeometry(winW + 0.08, 0.44, 0.03), trimMat);
-      trim.position.set(x, y, sideZ + 0.06);
-      g.add(trim);
+    for (const x of frontSlots) addFrontWindow(x, y, 1);
+    for (const x of backSlots) addFrontWindow(x, y, -1);
+    for (const z of sideSlots) {
+      addSideWindow(1, y, z);
+      addSideWindow(-1, y, z);
     }
   }
 
